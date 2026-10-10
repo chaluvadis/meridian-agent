@@ -192,10 +192,9 @@ run "${COMPOSE[@]}" -f "$COMPOSE_FILE" ps
 
 if [ "$DRY_RUN" = false ]; then
     ok "The Meridian Agent is up:"
-    echo "  App:    http://localhost:${WEB_PORT}"
-    echo "  Chat:   http://localhost:${WEB_PORT}/chat"
-    echo "  Map:    http://localhost:${WEB_PORT}/map"
-    echo "  Health: http://localhost:${WEB_PORT}${HEALTH_PATH}"
+    echo "  App:     http://localhost:${WEB_PORT}"
+    echo "  Settings: http://localhost:${WEB_PORT}/profile/edit"
+    echo "  Health:  http://localhost:${WEB_PORT}${HEALTH_PATH}"
     echo
     if [ "$KEEP_MODELS" = false ]; then
         warn "First run pulls the SLM models (~5 GB). Watch progress with:"

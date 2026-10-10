@@ -2,12 +2,25 @@
 @rendermode InteractiveServer
 @using MeridianAgent.Web.Components.Onboarding
 @inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
 
 @* Same wizard as first-run onboarding, pre-populated and saving with one click.
-   Reached from the settings icon in the app bar. *@
-<OnboardingWizard Mode="WizardMode.Edit" />
+   Reached from the settings icon in the app bar, never from a nav item. *@
+<div class="settings-page">
+    <div class="settings-page-bar">
+        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                       Color="Color.Inherit"
+                       aria-label="Back to chat"
+                       OnClick="GoBack" />
+        <MudText Typo="Typo.h6" Class="settings-page-title">Your preferences</MudText>
+    </div>
+
+    <OnboardingWizard Mode="WizardMode.Edit" />
+</div>
 
 @code {
+    private void GoBack() => Navigation.NavigateTo("/");
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)

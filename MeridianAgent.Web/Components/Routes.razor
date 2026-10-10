@@ -6,6 +6,10 @@
     Router with a profile guard: first-time travelers (no completed onboarding) always land on
     /onboarding, and once onboarding is done the wizard itself is no longer reachable by accident.
     Error pages stay reachable in both states.
+
+    Three routes are live: "/" (the chat), "/onboarding" (first run) and "/profile/edit" (settings).
+    The map is no longer one of them — it is a sheet inside the chat — and the old sidebar links
+    (/map, /profile) simply no longer resolve, which lands on the NotFound page below.
 *@
 <Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)" OnNavigateAsync="OnNavigateAsync">
     <Found Context="routeData">

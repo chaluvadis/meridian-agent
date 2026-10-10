@@ -109,7 +109,10 @@ public sealed class ProactiveSuggestionScheduler : BackgroundService
 
         var profile = await profileService.GetProfileAsync(cancellationToken: cancellationToken).ConfigureAwait(false)
                       ?? UserProfile.Default;
-        var location = string.IsNullOrWhiteSpace(profile.HomeBase) ? profile.Destination : profile.HomeBase;
+
+        // The same single rule the app bar, the chat header and the itinerary pipeline use, so
+        // suggestions and the itinerary never end up keyed to different cities.
+        var location = profile.EffectiveLocation;
 
         TravelContext? context = null;
         try

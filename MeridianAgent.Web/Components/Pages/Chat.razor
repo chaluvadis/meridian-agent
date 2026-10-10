@@ -1,5 +1,4 @@
 @page "/"
-@page "/chat"
 @rendermode InteractiveServer
 @implements IAsyncDisposable
 @inject NavigationManager Navigation
@@ -15,90 +14,205 @@
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IJSRuntime JSRuntime
 
+@*
+    The app is the conversation, so the page is three zones stacked full height: a context header
+    (who this is for, and what the city is doing right now), the transcript, and the composer. The
+    map is not a destination — it slides up as a sheet inside the chat when a plan has places in it,
+    or on request from the header.
+*@
 <div class="chat-shell">
-    <div class="chat-toolbar">
-        <div>
-            <strong>@_profileName</strong>
-            <span class="text-muted"> @(_destination)</span>
-        </div>
-        <div class="d-flex align-items-center gap-2">
-            <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleMap" disabled="@(ChatState.IsBusy)">
-                @(_showMap ? "Hide map" : "Show map")
-            </button>
-            <button class="btn btn-sm btn-outline-secondary" title="Edit traveler profile" @onclick="EditProfile">⚙️</button>
-        </div>
-    </div>
-
-    @if (_showMap)
-    {
-        <LeafletMap Venues="MapState.Venues" Landmarks="MapState.Landmarks" FocusLabel="MapState.FocusLabel" />
-    }
-
-    <div class="chat-messages" @ref="_messagesContainer">
-        @if (ChatState.Messages.Count == 0 && ChatState.StreamingContent is null)
-        {
-            <div class="chat-empty">
-                <p>Where would you like to go — and how are you feeling right now?</p>
+    <header class="chat-header">
+        <div class="chat-header-main">
+            <div>
+                <p class="chat-header-greeting">Good @TimeOfDay, @_firstName</p>
+                <h1 class="chat-header-title">@GreetingMessage</h1>
             </div>
-        }
 
-        @foreach (var message in ChatState.Messages)
-        {
-            var bubbleClass = message.Type == MessageType.Proactive
-                ? "chat-bubble chat-assistant chat-proactive"
-                : message.Role == "user"
-                    ? "chat-bubble chat-user"
-                    : "chat-bubble chat-assistant";
-
-            <div class="@bubbleClass">
-                @if (message.Type == MessageType.Proactive)
+            <div class="chat-header-meta">
+                @if (_context is not null)
                 {
-                    <div class="proactive-badge">💡 Suggestion</div>
+                    <div class="weather-pill">
+                        <MudIcon Icon="@WeatherIcon" Size="Size.Small" Class="weather-pill-icon" />
+                        <span class="weather-pill-text">@_context.WeatherSummary</span>
+                    </div>
+                    <span class="chat-header-time">@_context.LocalTime</span>
                 }
-                <div class="chat-content">@message.Content</div>
-                <div class="chat-timestamp">@message.Timestamp.ToString("HH:mm")</div>
             </div>
+        </div>
 
-            @if (message.QuickActions is { Count: > 0 })
+        @if (MapState.Venues.Count > 0)
+        {
+            <button class="chat-nearby-toggle" @onclick="ToggleMap">
+                <MudIcon Icon="@Icons.Material.Filled.Map" Size="Size.Small" />
+                <span>@(_showMap ? "Hide nearby" : "Nearby")</span>
+            </button>
+        }
+    </header>
+
+    @* The map, when it is relevant: a sheet that rises over the transcript instead of a route.
+       It lives inside the message area so the composer stays usable underneath it. *@
+    <div class="chat-body">
+        <div class="chat-messages" @ref="_messagesContainer" id="chat-messages">
+            @if (ChatState.Messages.Count == 0 && ChatState.StreamingContent is null)
             {
-                <div class="quick-actions @(message.Role == "user" ? "quick-actions-user" : null)">
-                    @foreach (var action in message.QuickActions)
-                    {
-                        <MudChip T="string"
-                                 Text="@action.Label"
-                                 Color="Color.Secondary"
-                                 Variant="Variant.Outlined"
-                                 Size="Size.Medium"
-                                 Disabled="@ChatState.IsBusy"
-                                 OnClick="() => HandleQuickAction(action)"
-                                 Class="quick-action-chip" />
-                    }
+                <div class="chat-empty">
+                    <div class="chat-empty-orb">
+                        <MudIcon Icon="@Icons.Material.Filled.Explore" Class="chat-empty-orb-icon" />
+                    </div>
+                    <h2 class="chat-empty-title">Where to next, @_firstName?</h2>
+                    <p class="chat-empty-body">@_emptyStatePitch</p>
                 </div>
             }
-        }
 
-        @if (ChatState.StreamingContent is not null)
+            @foreach (var message in ChatState.Messages)
+            {
+                var bubbleClass = message.Type == MessageType.Proactive
+                    ? "chat-bubble chat-assistant chat-proactive"
+                    : message.Role == "user"
+                        ? "chat-bubble chat-user"
+                        : "chat-bubble chat-assistant";
+
+                <div class="chat-message-row @(message.Role == "user" ? "chat-message-row-user" : null)">
+                    @if (message.Role != "user")
+                    {
+                        <div class="chat-avatar" aria-hidden="true">
+                            <MudIcon Icon="@Icons.Material.Filled.Explore" Size="Size.Small" />
+                        </div>
+                    }
+
+                    <div class="chat-message-main">
+                        @if (message.Type == MessageType.Proactive)
+                        {
+                            <div class="proactive-badge">
+                                <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" Size="Size.Small" />
+                                Suggestion for you
+                            </div>
+                        }
+
+                        <div class="@bubbleClass">
+                            @message.Content
+                        </div>
+                        <span class="chat-timestamp">@message.Timestamp.ToString("HH:mm")</span>
+
+                        @if (message.QuickActions is { Count: > 0 })
+                        {
+                            <div class="quick-actions @(message.Role == "user" ? "quick-actions-user" : null)">
+                                @foreach (var action in message.QuickActions)
+                                {
+                                    <MudChip T="string"
+                                             Text="@action.Label"
+                                             Color="Color.Secondary"
+                                             Variant="Variant.Outlined"
+                                             Size="Size.Medium"
+                                             Disabled="@ChatState.IsBusy"
+                                             OnClick="() => HandleQuickAction(action)"
+                                             Class="quick-action-chip" />
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (ChatState.StreamingContent is not null)
+            {
+                <div class="chat-message-row">
+                    <div class="chat-avatar" aria-hidden="true">
+                        <MudIcon Icon="@Icons.Material.Filled.Explore" Size="Size.Small" />
+                    </div>
+                    <div class="chat-message-main">
+                        <div class="chat-bubble chat-assistant">
+                            @ChatState.StreamingContent<span class="chat-cursor">&nbsp;</span>
+                        </div>
+                    </div>
+                </div>
+            }
+            else if (ChatState.IsBusy)
+            {
+                <div class="chat-message-row">
+                    <div class="chat-avatar" aria-hidden="true">
+                        <MudIcon Icon="@Icons.Material.Filled.Explore" Size="Size.Small" />
+                    </div>
+                    <div class="chat-typing" aria-label="Thinking">
+                        <span></span><span></span><span></span>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @if (_showMap)
         {
-            <div class="chat-bubble chat-assistant">@ChatState.StreamingContent<span class="chat-cursor">&nbsp;</span></div>
-        }
-        else if (ChatState.IsBusy)
-        {
-            <div class="chat-bubble chat-assistant text-muted">Thinking…</div>
+            <div class="map-sheet-backdrop" @onclick="ToggleMap"></div>
+            <section class="map-sheet">
+                <div class="map-sheet-grabber" aria-hidden="true"></div>
+
+                <header class="map-sheet-header">
+                    <div>
+                        <h2 class="map-sheet-title">Nearby suggestions</h2>
+                        <p class="map-sheet-subtitle">@MapState.CenterLabel</p>
+                    </div>
+                    <MudIconButton Icon="@Icons.Material.Filled.Close"
+                                   Color="Color.Inherit"
+                                   aria-label="Close the map"
+                                   OnClick="ToggleMap" />
+                </header>
+
+                <div class="map-sheet-body">
+                    <LeafletMap Venues="MapState.Venues" Landmarks="MapState.Landmarks" FocusLabel="MapState.FocusLabel" />
+
+                    @if (MapState.Venues.Count == 0)
+                    {
+                        <p class="map-sheet-empty">Ask for something and I will fill the map in.</p>
+                    }
+                    else
+                    {
+                        <ol class="map-sheet-list">
+                            @foreach (var venue in MapState.Venues)
+                            {
+                                <li class="map-sheet-item">
+                                    <strong>@venue.Name</strong>
+                                    <span class="map-sheet-item-meta">@venue.Category · @venue.TravelTimeMinutes min away</span>
+                                    <span class="map-sheet-item-why">@venue.WhyItFits</span>
+                                </li>
+                            }
+                        </ol>
+                    }
+                </div>
+            </section>
         }
     </div>
 
-    <div class="chat-suggestions">
-        @foreach (var suggestion in _suggestions)
+    <footer class="chat-composer">
+        @if (ChatState.Messages.Count == 0 && ChatState.StreamingContent is null && !ChatState.IsBusy)
         {
-            <button class="btn btn-sm btn-outline-primary" @onclick="() => SendAsync(suggestion)" disabled="@ChatState.IsBusy">@suggestion</button>
+            <div class="chat-suggestions">
+                @foreach (var suggestion in _suggestions)
+                {
+                    <button class="chat-suggestion" @onclick="() => SendAsync(suggestion)" disabled="@ChatState.IsBusy">
+                        @suggestion
+                    </button>
+                }
+            </div>
         }
-    </div>
 
-    <div class="chat-input">
-        <input class="form-control" placeholder="Ask The Meridian Agent…" @bind="_query" @bind:event="oninput"
-               disabled="@ChatState.IsBusy" @onkeydown="OnKeyDown" />
-        <button class="btn btn-primary" @onclick="() => SendAsync(_query)" disabled="@(ChatState.IsBusy || string.IsNullOrWhiteSpace(_query))">Send</button>
-    </div>
+        <div class="chat-input">
+            <input class="chat-input-field"
+                   placeholder="How are you feeling right now?"
+                   aria-label="Ask The Meridian Agent"
+                   @bind="_query"
+                   @bind:event="oninput"
+                   disabled="@ChatState.IsBusy"
+                   @onkeydown="OnKeyDown" />
+            <button class="chat-send"
+                    @onclick="() => SendAsync(_query)"
+                    disabled="@(ChatState.IsBusy || string.IsNullOrWhiteSpace(_query))"
+                    aria-label="Send">
+                <MudIcon Icon="@Icons.Material.Filled.Send" Size="Size.Small" />
+            </button>
+        </div>
+
+        <p class="chat-composer-note">Meridian reads the hour, the weather, and what you have told me about you</p>
+    </footer>
 </div>
 
 @code {
@@ -116,8 +230,57 @@
     private UserProfile _profile = UserProfile.Default;
     private DestinationRulebook? _rulebook;
     private string _profileName = "Traveler";
-    private string _destination = string.Empty;
+    private TravelContext? _context;
     private Task? _welcomeTask;
+
+    /// <summary>
+    /// The hour as the destination experiences it, so the greeting and the clock shown beside it
+    /// can never disagree. Falls back to the server clock only when no context has loaded yet.
+    /// </summary>
+    private int LocalHour =>
+        int.TryParse(_context?.LocalTime?.Split(':')[0], out var parsed) ? parsed : DateTime.Now.Hour;
+
+    private string TimeOfDay => LocalHour switch
+    {
+        < 12 => "morning",
+        < 17 => "afternoon",
+        _ => "evening",
+    };
+
+    private string GreetingMessage => TimeOfDay switch
+    {
+        "morning" => "Ready for today's adventures?",
+        "afternoon" => "How's your day going?",
+        _ => "Looking for evening plans?",
+    };
+
+    private string _firstName => _profileName.Split(' ', StringSplitOptions.RemoveEmptyEntries) is { Length: > 0 } parts
+        ? parts[0]
+        : _profileName;
+
+    /// <summary>The empty state's promise: this app already knows who it is talking to.</summary>
+    private string _emptyStatePitch
+    {
+        get
+        {
+            var interests = _profile.CoreInterests.Count > 0 ? _profile.CoreInterests : _profile.Interests;
+            var style = string.IsNullOrWhiteSpace(_profile.TravelStyle) ? "curious" : _profile.TravelStyle.ToLowerInvariant();
+            var interest = interests.Count > 0 ? interests[0].ToLowerInvariant() : "the city";
+
+            return $"I know your style — a {style} traveler who loves {interest}. Tell me how you are feeling, or start with one of the suggestions below.";
+        }
+    }
+
+    private string WeatherIcon => _context switch
+    {
+        null => Icons.Material.Filled.WbSunny,
+        { IsRaining: true } => Icons.Material.Filled.Water,
+        { WeatherCondition: "Clear" } => Icons.Material.Filled.WbSunny,
+        { WeatherCondition: "Clouds" } => Icons.Material.Filled.Cloud,
+        { WeatherCondition: "Thunderstorm" } => Icons.Material.Filled.Thunderstorm,
+        { WeatherCondition: "Snow" } => Icons.Material.Filled.AcUnit,
+        _ => Icons.Material.Filled.Cloud,
+    };
 
     protected override async Task OnInitializedAsync()
     {
@@ -125,11 +288,28 @@
 
         _profile = await ProfileService.GetProfileAsync("default") ?? UserProfile.Default;
         _profileName = _profile.DisplayName;
-        _destination = _profile.Destination;
 
         if (!string.IsNullOrWhiteSpace(_profile.Destination))
         {
             _rulebook = await RulebookStore.GetAsync(_profile.Destination);
+        }
+
+        // The header shows the city as it is right now, so the greeting, the clock and the weather
+        // it paints all come from the same place the pipeline reads. The provider caches briefly,
+        // so prerendering plus the interactive circuit plus the first query cost one round trip,
+        // not three.
+        try
+        {
+            var location = _profile.EffectiveLocation;
+
+            if (!string.IsNullOrWhiteSpace(location))
+            {
+                _context = await ContextProvider.GetCurrentAsync(location);
+            }
+        }
+        catch (Exception)
+        {
+            // Weather is decoration, never a reason to leave the chat blank.
         }
 
         // The greeting is produced once, when the traveler first lands in chat after onboarding.
@@ -203,8 +383,6 @@
     }
 
     private void ToggleMap() => _showMap = !_showMap;
-
-    private void EditProfile() => Navigation.NavigateTo("/profile/edit");
 
     /// <summary>
     /// The agent's first words after onboarding: generated by the Synthesizer from everything the
@@ -293,10 +471,12 @@
             ChatState.EndAssistant(response?.QuickActions);
 
             var venues = Orchestrator.Blackboard.Itinerary?.Venues ?? Array.Empty<Venue>();
+            var hadVenues = MapState.Venues.Count > 0;
             MapState.SetVenues(venues);
-            MapState.SetLandmarks(request?.NearbyVenues ?? Array.Empty<NearbyVenue>(), request?.Context.Location ?? _destination);
+            MapState.SetLandmarks(request?.NearbyVenues ?? Array.Empty<NearbyVenue>(), request?.Context.Location ?? _profile.EffectiveLocation);
 
-            if (!_showMap && venues.Count > 0)
+            // A plan with places in it is exactly when the map becomes worth showing.
+            if (!_showMap && venues.Count > 0 && !hadVenues)
             {
                 _showMap = true;
             }
@@ -351,7 +531,7 @@
 
     private async Task<TravelRequest> BuildRequestAsync(string query)
     {
-        var location = string.IsNullOrWhiteSpace(_profile.HomeBase) ? _profile.Destination : _profile.HomeBase;
+        var location = _profile.EffectiveLocation;
         var context = await ContextProvider.GetCurrentAsync(location);
 
         var nearby = await NearbyVenueStore.GetAsync(context.Location);

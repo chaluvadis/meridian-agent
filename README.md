@@ -63,9 +63,12 @@ dotnet run --project MeridianAgent.Web
 
 Then open the printed URL (default <http://localhost:5247> / https). Pages:
 
-- `/chat` — streaming chat; toggle the Leaflet map to see the proposed venues
-- `/map` — full-page map of the current plan
-- `/profile` — edit traveler preferences (saved to `samples/profiles/default.json`)
+- `/` — the chat. It *is* the app: a context header (greeting, weather, local time), the
+  transcript, and a composer that opens with three conversation starters. The map is not a
+  destination — it rises as a sheet over the transcript when a plan has venues in it, or from
+  the **Nearby** button in the header
+- `/onboarding` — first-run wizard
+- `/profile/edit` — the same wizard as settings, reachable only from the gear icon in the app bar
 
 `GET /health` returns `Healthy` for Coolify/Docker health checks.
 
@@ -151,10 +154,10 @@ the database on the first run so nothing is lost. The connection string is
 ## One-tap quick actions in chat
 
 Every reply that proposes something concrete comes back with two or three chips underneath it —
-"📌 Show on Map", "✅ Accept & Plan", "🔄 Find Alternatives". The Synthesizer returns them as JSON
-alongside the message (tolerantly parsed: a broken envelope still yields the message, just without
-chips), and tapping one either pans the map or replays the payload straight through the pipeline, so
-acting on a suggestion never means typing.
+"📍 Show on Map", "📅 Plan This", "🔎 More Options". The Synthesizer returns them as JSON alongside
+the message (tolerantly parsed: a broken envelope still yields the message, just without chips), and
+tapping one either pans the map in the sheet or replays the payload straight through the pipeline,
+so acting on a suggestion never means typing.
 
 ## Logging
 
@@ -194,6 +197,6 @@ Other flags: `--no-build`, `-y` (skip the confirmation prompt), `--help`.
 dotnet test
 ```
 
-54 xUnit tests cover the JSON extractor (fences, prose, trailing commas, balanced scanning), the
+109 xUnit tests cover the JSON extractor (fences, prose, trailing commas, balanced scanning), the
 prompt renderer, each agent's parsing/validation/retry behaviour, the blackboard, and the full
 orchestrator pipeline including every graceful-degradation path.

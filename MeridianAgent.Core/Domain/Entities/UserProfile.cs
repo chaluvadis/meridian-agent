@@ -100,6 +100,14 @@ public sealed record UserProfile
     public static UserProfile Default => new();
 
     /// <summary>
+    /// The place this traveler is right now: their home base if they named one, otherwise the
+    /// destination they travelled for. One rule, so the app bar, the chat header and the pipeline
+    /// can never disagree about which city they are in.
+    /// </summary>
+    public string EffectiveLocation =>
+        string.IsNullOrWhiteSpace(HomeBase) ? Destination : HomeBase!;
+
+    /// <summary>
     /// Local, model-free greeting for the first chat after onboarding — used when the Synthesizer
     /// cannot produce one. Warm on purpose: the traveler should still feel recognized.
     /// </summary>

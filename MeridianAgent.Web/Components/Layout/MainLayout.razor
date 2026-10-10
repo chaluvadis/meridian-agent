@@ -1,37 +1,51 @@
 ﻿@inherits LayoutComponentBase
 @using MeridianAgent.Web.Components.Theme
 @inject NavigationManager Navigation
+@inject IUserProfileService ProfileService
 
 @*
-    Main shell: existing sidebar navigation, plus the MudBlazor providers that give every page the
-    Meridian theme, and the settings entry point in the app bar.
+    The whole app is the chat, so the shell is deliberately thin: one top app bar that names the
+    product, shows where the traveler is, and carries the single settings entry point. No sidebar,
+    no nav items — everything else in the app is contextual.
 *@
 <MudThemeProvider Theme="MeridianTheme.Create()" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+<MudLayout>
+    <MudAppBar Elevation="0" Class="app-bar-fixed" Fixed="false">
+        <MudContainer MaxWidth="MaxWidth.Large" Class="d-flex align-center justify-space-between app-bar-inner">
+            <div class="d-flex align-center gap-2">
+                <MudIcon Icon="@Icons.Material.Filled.Explore" Class="brand-icon" />
+                <MudText Typo="Typo.h6" Class="brand-name">Meridian</MudText>
+            </div>
 
-    <main>
-        <div class="top-row px-4 d-flex align-items-center justify-content-between">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-            <MudIconButton Icon="@Icons.Material.Filled.Settings"
-                           Color="Color.Inherit"
-                           Size="Size.Medium"
-                           aria-label="Edit traveler profile"
-                           title="Edit traveler profile"
-                           OnClick="GoToProfileEdit" />
-        </div>
+            <div class="d-flex align-center gap-1 gap-sm-3">
+                @if (!string.IsNullOrWhiteSpace(_location))
+                {
+                    <MudText Typo="Typo.body2" Class="app-bar-location">
+                        <MudIcon Icon="@Icons.Material.Filled.LocationOn" Size="Size.Small" Class="app-bar-location-icon" />
+                        @_location
+                    </MudText>
+                }
 
-        <article class="content px-4">
+                <MudIconButton Icon="@Icons.Material.Filled.Settings"
+                               Color="Color.Inherit"
+                               Class="app-bar-settings"
+                               aria-label="Edit traveler profile"
+                               title="Edit traveler profile"
+                               OnClick="GoToProfileEdit" />
+            </div>
+        </MudContainer>
+    </MudAppBar>
+
+    <MudMainContent Class="app-main">
+        <div class="app-content">
             @Body
-        </article>
-    </main>
-</div>
+        </div>
+    </MudMainContent>
+</MudLayout>
 
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.
@@ -40,5 +54,23 @@
 </div>
 
 @code {
+    private string _location = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var profile = await ProfileService.GetProfileAsync("default");
+
+            // The bar shows where the traveler is, resolved by the same single rule the chat
+            // header and the pipeline use so they cannot drift apart.
+            _location = profile?.EffectiveLocation ?? string.Empty;
+        }
+        catch (Exception)
+        {
+            // The chat is the point; an unreadable profile must not blank the whole page.
+        }
+    }
+
     private void GoToProfileEdit() => Navigation.NavigateTo("/profile/edit");
 }

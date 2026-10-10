@@ -1,0 +1,134 @@
+@using MeridianAgent.Domain.Entities
+@implements IAsyncDisposable
+
+<div @ref="_mapElement" class="meridian-map"></div>
+
+@code {
+    [Parameter]
+    public IReadOnlyList<Venue> Venues { get; set; } = Array.Empty<Venue>();
+
+    [Parameter]
+    public IReadOnlyList<NearbyVenue> Landmarks { get; set; } = Array.Empty<NearbyVenue>();
+
+    [Inject]
+    private IJSRuntime Js { get; set; } = default!;
+
+    private ElementReference _mapElement;
+    private bool _initialized;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                await Js.InvokeVoidAsync("meridianMap.create", _mapElement);
+                _initialized = true;
+            }
+            catch (JSException)
+            {
+                return;
+            }
+        }
+
+        await UpdateMarkersAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_initialized)
+        {
+            await UpdateMarkersAsync();
+        }
+    }
+
+    private async Task UpdateMarkersAsync()
+    {
+        var markers = new List<object>();
+        var bounds = new List<double[]>();
+
+        foreach (var landmark in Landmarks.Where(l => l.Latitude is not null && l.Longitude is not null))
+        {
+            markers.Add(new
+            {
+                lat = landmark.Latitude,
+                lon = landmark.Longitude,
+                label = landmark.Name,
+                kind = "landmark",
+            });
+            bounds.Add(new[] { landmark.Latitude!.Value, landmark.Longitude!.Value });
+        }
+
+        var center = bounds.Count > 0
+            ? new[]
+            {
+                bounds.Average(b => b[0]),
+                bounds.Average(b => b[1]),
+            }
+            : new[] { 0.0, 0.0 };
+
+        var index = 0;
+        foreach (var venue in Venues)
+        {
+            index++;
+
+            var landmark = Landmarks.FirstOrDefault(l =>
+                !string.IsNullOrWhiteSpace(l.Name) &&
+                (l.Name.Contains(venue.Name, StringComparison.OrdinalIgnoreCase) ||
+                 venue.Name.Contains(l.Name, StringComparison.OrdinalIgnoreCase)));
+
+            double lat;
+            double lon;
+
+            if (landmark?.Latitude is not null && landmark.Longitude is not null)
+            {
+                lat = landmark.Latitude.Value;
+                lon = landmark.Longitude.Value;
+            }
+            else
+            {
+                lat = center[0] + (index * 0.004);
+                lon = center[1] + (index * 0.004);
+            }
+
+            markers.Add(new
+            {
+                lat,
+                lon,
+                label = $"{index}. {venue.Name}",
+                kind = "venue",
+            });
+            bounds.Add(new[] { lat, lon });
+        }
+
+        if (_initialized)
+        {
+            try
+            {
+                await Js.InvokeVoidAsync("meridianMap.setMarkers", _mapElement, markers);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (!_initialized)
+        {
+            return;
+        }
+
+        try
+        {
+            await Js.InvokeVoidAsync("meridianMap.dispose", _mapElement);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}

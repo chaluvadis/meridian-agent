@@ -1,0 +1,41 @@
+## .NET build output
+bin/
+obj/
+out/
+artifacts/
+*.user
+
+## IDE / editors
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosf
+*.sln.docstates
+*.swp
+*~
+
+## Test results / coverage
+TestResults/
+coverage/
+coverage.cobertura.xml
+*.trx
+*.coverage
+
+## Local secrets / environment
+.env.local
+.env.*.local
+secrets.json
+
+## OS noise
+.DS_Store
+Thumbs.db
+
+## Logs
+*.log
+
+## NuGet
+*.nupkg
+*.snupkg
+packages/

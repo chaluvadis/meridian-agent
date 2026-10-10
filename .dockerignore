@@ -1,0 +1,19 @@
+# Build + runtime artefacts
+**/bin/
+**/obj/
+**/out/
+.git/
+.vs/
+.vscode/
+
+# Local overrides and secrets
+.env.*
+!.env
+*.user
+
+# Test results
+TestResults/
+coverage/
+
+# OS noise
+.DS_Store

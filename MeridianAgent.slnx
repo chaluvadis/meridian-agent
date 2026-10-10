@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="MeridianAgent.Core/MeridianAgent.Core.csproj" />
+  <Project Path="MeridianAgent.Infrastructure/MeridianAgent.Infrastructure.csproj" />
+  <Project Path="MeridianAgent.Tests/MeridianAgent.Tests.csproj" />
+  <Project Path="MeridianAgent.Web/MeridianAgent.Web.csproj" />
+</Solution>

@@ -1,0 +1,52 @@
+[
+  {
+    "venue_name": "Ippodo Tea Room",
+    "category": "cafe",
+    "is_open_now": true,
+    "is_indoor": true,
+    "dietary_options": ["vegetarian", "vegan"],
+    "distance_minutes": 6,
+    "latitude": 34.9935,
+    "longitude": 135.7758
+  },
+  {
+    "venue_name": "Gion Night Walk",
+    "category": "activity",
+    "is_open_now": true,
+    "is_indoor": false,
+    "dietary_options": [],
+    "distance_minutes": 12,
+    "latitude": 35.0037,
+    "longitude": 135.7788
+  },
+  {
+    "venue_name": "Pontocho Alley Food Crawl",
+    "category": "restaurant",
+    "is_open_now": false,
+    "is_indoor": false,
+    "dietary_options": ["vegetarian"],
+    "distance_minutes": 9,
+    "latitude": 35.0066,
+    "longitude": 135.7717
+  },
+  {
+    "venue_name": "Kyoto Station Ramen Row",
+    "category": "restaurant",
+    "is_open_now": true,
+    "is_indoor": true,
+    "dietary_options": [],
+    "distance_minutes": 4,
+    "latitude": 34.9858,
+    "longitude": 135.7587
+  },
+  {
+    "venue_name": "Cafe Bibliotic Hello",
+    "category": "cafe",
+    "is_open_now": true,
+    "is_indoor": true,
+    "dietary_options": ["vegetarian"],
+    "distance_minutes": 7,
+    "latitude": 34.9989,
+    "longitude": 135.7692
+  }
+]

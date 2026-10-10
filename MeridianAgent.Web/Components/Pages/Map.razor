@@ -1,0 +1,32 @@
+@page "/map"
+@using MeridianAgent.Web.Components.State
+@inject MapState MapState
+
+<div class="map-page">
+    <div class="chat-toolbar">
+        <strong>Venue map</strong>
+        <span class="text-muted">@MapState.CenterLabel</span>
+    </div>
+
+    <LeafletMap Venues="MapState.Venues" Landmarks="MapState.Landmarks" />
+
+    @if (MapState.Venues.Count == 0)
+    {
+        <p class="text-muted mt-2">No plan yet. Ask The Meridian Agent something in <a href="chat">chat</a> and the map will fill in.</p>
+    }
+    else
+    {
+        <ol class="venue-list mt-2">
+            @foreach (var venue in MapState.Venues)
+            {
+                <li>
+                    <strong>@venue.Name</strong>
+                    <span class="badge bg-secondary">@venue.Category</span>
+                    <span class="badge bg-info text-dark">@venue.VenueType</span>
+                    <div class="text-muted">@venue.WhyItFits</div>
+                    <div class="small">@venue.TravelTimeMinutes min away · @venue.EstimatedDuration · Best: @venue.BestTimeToVisit</div>
+                </li>
+            }
+        </ol>
+    }
+</div>

@@ -1,0 +1,163 @@
+@page "/"
+@page "/chat"
+@using MeridianAgent.Web.Components.State
+@inject NavigationManager Navigation
+@inject TravelQueryOrchestrator Orchestrator
+@inject IUserProfileStore ProfileStore
+@inject IRulebookStore RulebookStore
+@inject INearbyVenueStore NearbyVenueStore
+@inject ITravelContextProvider ContextProvider
+@inject ChatState ChatState
+@inject MapState MapState
+
+<div class="chat-shell">
+    <div class="chat-toolbar">
+        <div>
+            <strong>@_profileName</strong>
+            <span class="text-muted"> @(_destination)</span>
+        </div>
+        <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleMap" disabled="@(ChatState.IsBusy)">
+            @(_showMap ? "Hide map" : "Show map")
+        </button>
+    </div>
+
+    @if (_showMap)
+    {
+        <LeafletMap Venues="MapState.Venues" Landmarks="MapState.Landmarks" />
+    }
+
+    <div class="chat-messages">
+        @if (ChatState.Messages.Count == 0 && ChatState.StreamingContent is null)
+        {
+            <div class="chat-empty">
+                <p>Where would you like to go — and how are you feeling right now?</p>
+            </div>
+        }
+
+        @foreach (var message in ChatState.Messages)
+        {
+            <div class="chat-bubble @(message.Role == "user" ? "chat-user" : "chat-assistant")">@message.Content</div>
+        }
+
+        @if (ChatState.StreamingContent is not null)
+        {
+            <div class="chat-bubble chat-assistant">@ChatState.StreamingContent<span class="chat-cursor">&nbsp;</span></div>
+        }
+        else if (ChatState.IsBusy)
+        {
+            <div class="chat-bubble chat-assistant text-muted">Thinking…</div>
+        }
+    </div>
+
+    <div class="chat-suggestions">
+        @foreach (var suggestion in _suggestions)
+        {
+            <button class="btn btn-sm btn-outline-primary" @onclick="() => SendAsync(suggestion)" disabled="@ChatState.IsBusy">@suggestion</button>
+        }
+    </div>
+
+    <div class="chat-input">
+        <input class="form-control" placeholder="Ask The Meridian Agent…" @bind="_query" @bind:event="oninput"
+               disabled="@ChatState.IsBusy" @onkeydown="OnKeyDown" />
+        <button class="btn btn-primary" @onclick="() => SendAsync(_query)" disabled="@(ChatState.IsBusy || string.IsNullOrWhiteSpace(_query))">Send</button>
+    </div>
+</div>
+
+@code {
+    private readonly string[] _suggestions = new[]
+    {
+        "I've been walking all day - somewhere calm for dinner?",
+        "We're exhausted, anywhere good nearby?",
+        "Want to see a temple before they close?",
+    };
+
+    private string _query = string.Empty;
+    private bool _showMap;
+    private UserProfile _profile = UserProfile.Default;
+    private DestinationRulebook? _rulebook;
+    private string _profileName = "Traveler";
+    private string _destination = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _profile = await ProfileStore.GetAsync("default") ?? UserProfile.Default;
+        _profileName = _profile.DisplayName;
+        _destination = _profile.Destination;
+
+        if (!string.IsNullOrWhiteSpace(_profile.Destination))
+        {
+            _rulebook = await RulebookStore.GetAsync(_profile.Destination);
+        }
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            await SendAsync(_query);
+        }
+    }
+
+    private void ToggleMap() => _showMap = !_showMap;
+
+    private async Task SendAsync(string query)
+    {
+        if (ChatState.IsBusy || string.IsNullOrWhiteSpace(query))
+        {
+            return;
+        }
+
+        _query = string.Empty;
+        ChatState.AddUser(query);
+        ChatState.BeginAssistant();
+        StateHasChanged();
+
+        TravelRequest? request = null;
+
+        try
+        {
+            request = await BuildRequestAsync(query);
+
+            await foreach (var token in Orchestrator.StreamAsync(request))
+            {
+                ChatState.AppendAssistant(token);
+                StateHasChanged();
+                await Task.Yield();
+            }
+        }
+        catch (Exception ex)
+        {
+            ChatState.AppendAssistant($"I hit a snag: {ex.Message}");
+        }
+        finally
+        {
+            ChatState.EndAssistant();
+
+            var venues = Orchestrator.Blackboard.Itinerary?.Venues ?? Array.Empty<Venue>();
+            MapState.SetVenues(venues);
+            MapState.SetLandmarks(request?.NearbyVenues ?? Array.Empty<NearbyVenue>(), request?.Context.Location ?? _destination);
+
+            if (!_showMap && venues.Count > 0)
+            {
+                _showMap = true;
+            }
+
+            StateHasChanged();
+        }
+    }
+
+    private async Task<TravelRequest> BuildRequestAsync(string query)
+    {
+        var location = string.IsNullOrWhiteSpace(_profile.HomeBase) ? _profile.Destination : _profile.HomeBase;
+        var context = await ContextProvider.GetCurrentAsync(location);
+
+        var nearby = await NearbyVenueStore.GetAsync(context.Location);
+        var rulebook = _rulebook ?? await RulebookStore.GetAsync(_profile.Destination) ?? new DestinationRulebook
+        {
+            Destination = _profile.Destination,
+            Rules = Array.Empty<SafeguardRule>(),
+        };
+
+        return new TravelRequest(query, _profile, context, nearby, rulebook);
+    }
+}

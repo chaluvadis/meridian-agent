@@ -247,6 +247,12 @@ public sealed class FakeSynthesizerAgent : ISynthesizerAgent
 
     public Exception? ProactiveError { get; set; }
 
+    public List<UserProfile> WelcomeRequests { get; } = new();
+
+    public string WelcomeResponse { get; set; } = "Welcome, Aria! A balanced traveler who loves old town souks — I'll keep the mega malls off your list.";
+
+    public Exception? WelcomeError { get; set; }
+
     public async Task<string> ExecuteProactiveAsync(
         IReadOnlyList<ProactiveSuggestion> suggestions,
         ProactiveRequest request,
@@ -260,6 +266,18 @@ public sealed class FakeSynthesizerAgent : ISynthesizerAgent
 
         await Task.Yield();
         return ProactiveResponse;
+    }
+
+    public async Task<string> ExecuteWelcomeAsync(UserProfile profile, CancellationToken cancellationToken = default)
+    {
+        WelcomeRequests.Add(profile);
+        if (WelcomeError is not null)
+        {
+            throw WelcomeError;
+        }
+
+        await Task.Yield();
+        return WelcomeResponse;
     }
 }
 

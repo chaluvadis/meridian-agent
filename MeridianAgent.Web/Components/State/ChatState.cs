@@ -51,6 +51,18 @@ public sealed class ChatState
         NotifyChanged();
     }
 
+    /// <summary>Adds a finished assistant message (the post-onboarding welcome, for instance).</summary>
+    public void AddAssistant(string content, MessageType type = MessageType.Reactive)
+    {
+        _messages.Add(new ChatMessage(
+            Guid.NewGuid().ToString(),
+            "assistant",
+            content,
+            DateTime.Now,
+            type));
+        NotifyChanged();
+    }
+
     /// <summary>Adds an agent-initiated message that arrived over the chat hub while nobody asked.</summary>
     public void AddProactive(string messageId, string content)
     {

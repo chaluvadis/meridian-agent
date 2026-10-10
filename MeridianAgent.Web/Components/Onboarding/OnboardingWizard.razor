@@ -1,0 +1,470 @@
+@using MeridianAgent.Domain.Entities
+
+@*
+    The premium onboarding wizard: welcome, about you, food, interests, logistics, review.
+    Shared by the first-run wizard (/onboarding) and the profile editor (/profile/edit);
+    only the final button copy and the saved profile flags differ between the two modes.
+*@
+<div class="onboarding-wizard">
+    <MudContainer MaxWidth="MaxWidth.Small" Class="onboarding-container">
+
+        <div class="onboarding-heading">
+            <MudText Typo="Typo.h5" Color="Color.Primary">
+                @(Mode == WizardMode.Onboarding ? "Let's set up your Meridian" : "Edit your travel profile")
+            </MudText>
+            <MudText Typo="Typo.body2" Class="onboarding-heading-sub">
+                @(Mode == WizardMode.Onboarding
+                    ? "Six short steps — every answer shapes how I recommend, warn, and surprise you."
+                    : "Everything here still applies immediately to your recommendations.")
+            </MudText>
+        </div>
+
+        <MudPaper Elevation="4" Class="onboarding-paper">
+            <MudStepper @bind-ActiveIndex="_step"
+                        NonLinear="true"
+                        CompletedStepColor="Color.Success"
+                        CurrentStepColor="Color.Primary"
+                        Class="onboarding-stepper">
+
+                <MudStep Title="Welcome" Completed="_visited[0]" Class="onboarding-step">
+                    <div class="onboarding-welcome">
+                        <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Large" Class="onboarding-hero">
+                            <MudIcon Icon="@Icons.Material.Filled.TravelExplore" Size="Size.Large" />
+                        </MudAvatar>
+
+                        <MudText Typo="Typo.h4" Align="Align.Center" GutterBottom="true">
+                            @(Mode == WizardMode.Onboarding
+                                ? "Meet Meridian — your personal travel concierge"
+                                : "Welcome back — let's tune your profile")
+                        </MudText>
+
+                        <MudText Typo="Typo.body1" Align="Align.Center">
+                            @(Mode == WizardMode.Onboarding
+                                ? "Tell me how you travel and I keep the rest in mind: what's worth seeing right now, what fits your mood and the hour, what respects your dietary rules — and what you'd rather skip entirely."
+                                : "Same six steps as before. Everything here applies to your recommendations the moment you hit save.")
+                        </MudText>
+
+                            <div class="onboarding-promises">
+                                <div class="onboarding-promise">
+                                    <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" Color="Color.Primary" />
+                                    <span>Plans tuned to your style, not a top-ten list</span>
+                                </div>
+                                <div class="onboarding-promise">
+                                    <MudIcon Icon="@Icons.Material.Filled.VerifiedUser" Color="Color.Primary" />
+                                    <span>Local rules and dietary needs checked quietly, every time</span>
+                                </div>
+                                <div class="onboarding-promise">
+                                    <MudIcon Icon="@Icons.Material.Filled.Lightbulb" Color="Color.Primary" />
+                                    <span>Speaks up first when something fits the moment</span>
+                                </div>
+                            </div>
+
+                            <MudButton Variant="Variant.Filled"
+                                       Color="Color.Primary"
+                                       Size="Size.Large"
+                                       FullWidth="true"
+                                       Class="onboarding-cta"
+                                       OnClick="() => GoToStep(1)">
+                                @(Mode == WizardMode.Onboarding ? "Let's Get Started" : "Continue to your profile")
+                             </MudButton>
+                         </div>
+                     </MudStep>
+
+                 <MudStep Title="About you" SecondaryText="Step 1" Completed="_visited[1]" Class="onboarding-step">
+                    <div class="onboarding-step-body">
+                        <MudTextField @bind-Value="_draft.DisplayName"
+                                      Label="What should Meridian call you?"
+                                      Variant="Variant.Outlined"
+                                      Required="true"
+                                      Error="_nameError"
+                                      ErrorText="A name is all I need to get started."
+                                      Immediate="true"
+                                      MaxLength="40"
+                                      Counter="40"
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.Face"
+                                      Class="onboarding-field" />
+
+                        <MudText Typo="Typo.subtitle1" Class="onboarding-question">How do you like to travel?</MudText>
+                        <MudRadioGroup @bind-Value="_draft.TravelStyle" Class="onboarding-options">
+                            @foreach (var option in TravelerOnboardingDraft.TravelStyles)
+                            {
+                                <MudRadio T="string" Value="@option.Value" Color="Color.Primary" Class="onboarding-radio">@option.Label</MudRadio>
+                            }
+                        </MudRadioGroup>
+
+                        <MudText Typo="Typo.subtitle1" Class="onboarding-question">When are you at your best?</MudText>
+                        <MudRadioGroup @bind-Value="_draft.EnergyPattern" Class="onboarding-options">
+                            @foreach (var option in TravelerOnboardingDraft.EnergyPatterns)
+                            {
+                                <MudRadio T="string" Value="@option.Value" Color="Color.Primary" Class="onboarding-radio">@option.Label</MudRadio>
+                            }
+                        </MudRadioGroup>
+                    </div>
+                </MudStep>
+
+                <MudStep Title="Food & dining" SecondaryText="@(Mode == WizardMode.Onboarding ? "Step 2" : null)" Completed="_visited[2]" Class="onboarding-step">
+                    <div class="onboarding-step-body">
+                        <MudText Typo="Typo.subtitle1" Class="onboarding-question">Any dietary restrictions?</MudText>
+                        <MudChipSet T="string" SelectionMode="SelectionMode.MultiSelection" Class="onboarding-chips">
+                            @foreach (var option in TravelerOnboardingDraft.DietaryOptions)
+                            {
+                                <MudChip T="string"
+                                         Value="@option.Value"
+                                         Text="@option.Label"
+                                         Color="Color.Primary"
+                                         Variant="Variant.Outlined"
+                                         Selected="_draft.DietaryRestrictions.Contains(option.Value)"
+                                         OnClick="() => TravelerOnboardingDraft.Toggle(_draft.DietaryRestrictions, option.Value)" />
+                            }
+                        </MudChipSet>
+
+                        <div class="onboarding-slider-block">
+                            <div class="onboarding-slider-title">
+                                <MudText Typo="Typo.subtitle1">Spice tolerance</MudText>
+                                <MudText Typo="Typo.caption" Class="onboarding-slider-value">@_draft.SpiceLabel 🌶️</MudText>
+                            </div>
+                            <MudSlider T="int"
+                                       @bind-Value="_draft.SpiceTolerance"
+                                       Min="0"
+                                       Max="5"
+                                       Step="1"
+                                       ValueLabel="true"
+                                       Color="Color.Primary"
+                                       Class="onboarding-slider" />
+                            <div class="onboarding-slider-ends">
+                                <span>Mild 🥛</span>
+                                <span>Fiery 🔥</span>
+                            </div>
+                        </div>
+
+                        <MudText Typo="Typo.subtitle1" Class="onboarding-question">Favorite cuisines</MudText>
+                        <MudChipSet T="string" SelectionMode="SelectionMode.MultiSelection" Class="onboarding-chips">
+                            @foreach (var option in TravelerOnboardingDraft.Cuisines)
+                            {
+                                <MudChip T="string"
+                                         Value="@option.Value"
+                                         Text="@option.Label"
+                                         Color="Color.Primary"
+                                         Variant="Variant.Outlined"
+                                         Selected="_draft.FavoriteCuisines.Contains(option.Value)"
+                                         OnClick="() => TravelerOnboardingDraft.Toggle(_draft.FavoriteCuisines, option.Value)" />
+                            }
+                        </MudChipSet>
+
+                        <MudText Typo="Typo.subtitle1" Class="onboarding-question">Dining vibe</MudText>
+                        <MudChipSet T="string" SelectionMode="SelectionMode.MultiSelection" Class="onboarding-chips">
+                            @foreach (var option in TravelerOnboardingDraft.DiningVibes)
+                            {
+                                <MudChip T="string"
+                                         Value="@option.Value"
+                                         Text="@option.Label"
+                                         Color="Color.Primary"
+                                         Variant="Variant.Outlined"
+                                         Selected="_draft.DiningVibe.Contains(option.Value)"
+                                         OnClick="() => TravelerOnboardingDraft.Toggle(_draft.DiningVibe, option.Value)" />
+                            }
+                        </MudChipSet>
+                    </div>
+                </MudStep>
+
+                <MudStep Title="Interests" SecondaryText="@(Mode == WizardMode.Onboarding ? "Step 3" : null)" Completed="_visited[3]" Class="onboarding-step">
+                    <div class="onboarding-step-body">
+                        <MudText Typo="Typo.subtitle1" Class="onboarding-question">What should I steer you towards?</MudText>
+                        <MudChipSet T="string" SelectionMode="SelectionMode.MultiSelection" Class="onboarding-chips">
+                            @foreach (var option in TravelerOnboardingDraft.InterestOptions)
+                            {
+                                <MudChip T="string"
+                                         Value="@option.Value"
+                                         Text="@option.Label"
+                                         Color="Color.Primary"
+                                         Variant="Variant.Outlined"
+                                         Selected="_draft.CoreInterests.Contains(option.Value)"
+                                         OnClick="() => TravelerOnboardingDraft.Toggle(_draft.CoreInterests, option.Value)" />
+                            }
+                        </MudChipSet>
+
+                        <MudText Typo="Typo.subtitle1" Class="onboarding-question">…and what should I steer you away from?</MudText>
+                        <MudChipSet T="string" SelectionMode="SelectionMode.MultiSelection" Class="onboarding-chips">
+                            @foreach (var option in TravelerOnboardingDraft.AvoidOptions)
+                            {
+                                <MudChip T="string"
+                                         Value="@option.Value"
+                                         Text="@option.Label"
+                                         Color="Color.Error"
+                                         Variant="Variant.Outlined"
+                                         Selected="_draft.HardAvoids.Contains(option.Value)"
+                                         OnClick="() => TravelerOnboardingDraft.Toggle(_draft.HardAvoids, option.Value)" />
+                            }
+                        </MudChipSet>
+                    </div>
+                </MudStep>
+
+                <MudStep Title="Logistics" SecondaryText="@(Mode == WizardMode.Onboarding ? "Step 4" : null)" Completed="_visited[4]" Class="onboarding-step">
+                    <div class="onboarding-step-body">
+                        <MudText Typo="Typo.subtitle1" Class="onboarding-question">Budget comfort</MudText>
+                        <MudRadioGroup @bind-Value="_draft.BudgetComfort" Class="onboarding-options">
+                            @foreach (var option in TravelerOnboardingDraft.BudgetComforts)
+                            {
+                                <MudRadio T="string" Value="@option.Value" Color="Color.Primary" Class="onboarding-radio">@option.Label</MudRadio>
+                            }
+                        </MudRadioGroup>
+
+                        <MudText Typo="Typo.subtitle1" Class="onboarding-question">Mobility — how much walking feels right?</MudText>
+                        <MudRadioGroup @bind-Value="_draft.Mobility" Class="onboarding-options">
+                            @foreach (var option in TravelerOnboardingDraft.MobilityOptions)
+                            {
+                                <MudRadio T="string" Value="@option.Value" Color="Color.Primary" Class="onboarding-radio">@option.Label</MudRadio>
+                            }
+                        </MudRadioGroup>
+
+                        <MudText Typo="Typo.subtitle1" Class="onboarding-question">Who's traveling?</MudText>
+                        <MudRadioGroup @bind-Value="_draft.TravelGroup" Class="onboarding-options">
+                            @foreach (var option in TravelerOnboardingDraft.TravelGroups)
+                            {
+                                <MudRadio T="string" Value="@option.Value" Color="Color.Primary" Class="onboarding-radio">@option.Label</MudRadio>
+                            }
+                        </MudRadioGroup>
+
+                        <MudSwitch T="bool" @bind-Value="_draft.FirstTimeVisitor" Color="Color.Primary" Class="onboarding-switch">
+                            <MudText Typo="Typo.body1">This is my first time in the destination</MudText>
+                        </MudSwitch>
+                    </div>
+                </MudStep>
+
+                <MudStep Title="Review" SecondaryText="@(Mode == WizardMode.Onboarding ? "Step 5" : null)" Completed="_visited[5]" Class="onboarding-step">
+                    <div class="onboarding-step-body">
+                        <MudText Typo="Typo.subtitle1" Class="onboarding-question">Here's what I understand about you</MudText>
+
+                        <MudGrid Spacing="2">
+                            <MudItem xs="12" sm="6">
+                                <MudPaper Class="onboarding-summary-card" Outlined="true">
+                                    <MudText Typo="Typo.subtitle2" Color="Color.Primary">About you</MudText>
+                                    <p class="onboarding-summary-line"><strong>@DisplayNameOrFallback</strong></p>
+                                    <p class="onboarding-summary-line">@_draft.TravelStyle · @_draft.EnergyPattern</p>
+                                    <p class="onboarding-summary-line">@_draft.TravelGroup · @BudgetLabel</p>
+                                </MudPaper>
+                            </MudItem>
+                            <MudItem xs="12" sm="6">
+                                <MudPaper Class="onboarding-summary-card" Outlined="true">
+                                    <MudText Typo="Typo.subtitle2" Color="Color.Primary">Food & dining</MudText>
+                                    <p class="onboarding-summary-line">@ListOr(_draft.DietaryRestrictions)</p>
+                                    <p class="onboarding-summary-line">Spice: @_draft.SpiceLabel</p>
+                                    <p class="onboarding-summary-line">@ListOr(_draft.FavoriteCuisines)</p>
+                                    <p class="onboarding-summary-line">@ListOr(_draft.DiningVibe)</p>
+                                </MudPaper>
+                            </MudItem>
+                            <MudItem xs="12" sm="6">
+                                <MudPaper Class="onboarding-summary-card" Outlined="true">
+                                    <MudText Typo="Typo.subtitle2" Color="Color.Primary">Interests</MudText>
+                                    <p class="onboarding-summary-line">@ListOr(_draft.CoreInterests)</p>
+                                </MudPaper>
+                            </MudItem>
+                            <MudItem xs="12" sm="6">
+                                <MudPaper Class="onboarding-summary-card" Outlined="true">
+                                    <MudText Typo="Typo.subtitle2" Color="Color.Error">Hard avoids</MudText>
+                                    <p class="onboarding-summary-line">@ListOr(_draft.HardAvoids)</p>
+                                </MudPaper>
+                            </MudItem>
+                        </MudGrid>
+
+                        <MudText Typo="Typo.body2" Class="onboarding-review-note">
+                            @(Mode == WizardMode.Onboarding
+                                ? "You can change any of this later from the settings icon in the chat header."
+                                : "Your recommendations update the moment you save.")
+                        </MudText>
+                    </div>
+                </MudStep>
+            </MudStepper>
+
+            @if (_step > 0)
+            {
+                <div class="onboarding-actions">
+                    <MudButton Variant="Variant.Text"
+                               Color="Color.Default"
+                               Size="Size.Large"
+                               StartIcon="@Icons.Material.Filled.ArrowBack"
+                               OnClick="GoBack">
+                        @(_step == LastStep ? "Edit answers" : "Back")
+                    </MudButton>
+
+                    <MudSpacer />
+
+                    @if (_step < LastStep)
+                    {
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   Size="Size.Large"
+                                   EndIcon="@Icons.Material.Filled.ArrowForward"
+                                   OnClick="GoNext"
+                                   Class="onboarding-cta">
+                            Continue
+                        </MudButton>
+                    }
+                    else
+                    {
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   Size="Size.Large"
+                                   StartIcon="@Icons.Material.Filled.RocketLaunch"
+                                   OnClick="CompleteAsync"
+                                   Disabled="_saving"
+                                   Class="onboarding-cta">
+                            @(_saving ? "Saving…" : (Mode == WizardMode.Onboarding ? "Start Exploring" : "Save Changes"))
+                        </MudButton>
+                    }
+                </div>
+            }
+        </MudPaper>
+    </MudContainer>
+</div>
+
+@code {
+    [Parameter]
+    public WizardMode Mode { get; set; } = WizardMode.Onboarding;
+
+    [Inject]
+    private IUserProfileService ProfileService { get; set; } = default!;
+
+    [Inject]
+    private NavigationManager Navigation { get; set; } = default!;
+
+    [Inject]
+    private ISnackbar Snackbar { get; set; } = default!;
+
+    /// <summary>Index of the last step (Review) — both modes run the same six steps.</summary>
+    private const int LastStep = 5;
+
+    private readonly TravelerOnboardingDraft _draft = new();
+    private readonly bool[] _visited = new bool[6];
+    private int _step;
+    private bool _nameError;
+    private bool _saving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _step = Mode == WizardMode.Onboarding ? 0 : 1;
+        MarkVisited();
+
+        if (Mode == WizardMode.Edit)
+        {
+            var profile = await ProfileService.GetOrCreateAsync();
+            var restored = TravelerOnboardingDraft.From(profile);
+            CopyInto(restored, _draft);
+            _nameError = false;
+        }
+    }
+
+    private void MarkVisited()
+    {
+        _visited[Math.Clamp(_step, 0, _visited.Length - 1)] = true;
+    }
+
+    private void GoToStep(int step)
+    {
+        var target = Math.Clamp(step, 0, LastStep);
+        _step = target;
+        MarkVisited();
+    }
+
+    private void GoBack() => GoToStep(_step - 1);
+
+    private void GoNext()
+    {
+        if (_step == 1 && !_draft.IsNameProvided)
+        {
+            _nameError = true;
+            return;
+        }
+
+        _nameError = false;
+        GoToStep(_step + 1);
+    }
+
+    private async Task CompleteAsync()
+    {
+        if (_saving)
+        {
+            return;
+        }
+
+        if (!_draft.IsNameProvided)
+        {
+            _nameError = true;
+            _step = Mode == WizardMode.Onboarding ? 1 : 0;
+            MarkVisited();
+            return;
+        }
+
+        _saving = true;
+
+        try
+        {
+            var existing = await ProfileService.GetProfileAsync();
+            var destination = string.IsNullOrWhiteSpace(existing?.Destination)
+                ? "Dubai, UAE"
+                : existing.Destination;
+
+            var profile = _draft.BuildProfile(
+                existing?.Id ?? IUserProfileService.DefaultProfileId,
+                destination,
+                existing?.HomeBase,
+                existing?.AttireNote,
+                onboardingCompleted: true,
+                pendingWelcome: Mode == WizardMode.Onboarding);
+
+            await ProfileService.SaveProfileAsync(profile);
+
+            Snackbar.Add(
+                Mode == WizardMode.Onboarding
+                    ? $"Welcome aboard, {profile.DisplayName.Split(' ')[0]} — I'm getting to know you now."
+                    : "Profile saved — your recommendations already reflect it.",
+                Severity.Success);
+
+            Navigation.NavigateTo("/", replace: true);
+        }
+        catch (Exception)
+        {
+            // Keep the traveler on the review step with their answers intact.
+            Snackbar.Add(
+                "I couldn't save your profile just now — please try saving again.",
+                Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private string DisplayNameOrFallback => _draft.IsNameProvided ? _draft.DisplayName : "Not shared yet";
+
+    private string BudgetLabel => TravelerOnboardingDraft.BudgetComforts
+        .FirstOrDefault(option => option.Value == _draft.BudgetComfort)?.Label ?? _draft.BudgetComfort;
+
+    private static string ListOr(HashSet<string> values) =>
+        values.Count == 0 ? "Nothing selected" : string.Join(" · ", values);
+
+    /// <summary>Copies the answers loaded from an existing profile into the bound draft.</summary>
+    private static void CopyInto(TravelerOnboardingDraft from, TravelerOnboardingDraft into)
+    {
+        into.DisplayName = from.DisplayName;
+        into.TravelStyle = from.TravelStyle;
+        into.EnergyPattern = from.EnergyPattern;
+        into.BudgetComfort = from.BudgetComfort;
+        into.Mobility = from.Mobility;
+        into.TravelGroup = from.TravelGroup;
+        into.SpiceTolerance = from.SpiceTolerance;
+        into.FirstTimeVisitor = from.FirstTimeVisitor;
+
+        into.DietaryRestrictions.Clear();
+        into.DietaryRestrictions.UnionWith(from.DietaryRestrictions);
+        into.FavoriteCuisines.Clear();
+        into.FavoriteCuisines.UnionWith(from.FavoriteCuisines);
+        into.DiningVibe.Clear();
+        into.DiningVibe.UnionWith(from.DiningVibe);
+        into.CoreInterests.Clear();
+        into.CoreInterests.UnionWith(from.CoreInterests);
+        into.HardAvoids.Clear();
+        into.HardAvoids.UnionWith(from.HardAvoids);
+    }
+}

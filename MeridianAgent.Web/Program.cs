@@ -14,6 +14,9 @@ builder.Services.Configure<WeatherOptions>(builder.Configuration.GetSection(Weat
 builder.Services.Configure<ProactiveSuggestionsOptions>(builder.Configuration.GetSection(ProactiveSuggestionsOptions.SectionName));
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+// MudBlazor: services plus the theme providers rendered by the layouts.
+builder.Services.AddMudServices();
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddSignalR();
 builder.Services.AddHealthChecks();
 // Ollama: typed client with base address and timeout from configuration.
@@ -31,6 +34,7 @@ builder.Services.AddHttpClient<OsrmClient>();
 builder.Services.AddHttpClient<WeatherClient>();
 builder.Services.AddSingleton<ITravelContextProvider, LiveTravelContextProvider>();
 builder.Services.AddSingleton<IUserProfileStore, JsonFileUserProfileStore>();
+builder.Services.AddSingleton<IUserProfileService, UserProfileService>();
 builder.Services.AddSingleton<IRulebookStore, JsonFileRulebookStore>();
 builder.Services.AddSingleton<INearbyVenueStore, JsonFileNearbyVenueStore>();
 builder.Services.AddSingleton<VectorRulebookNarrower>();

@@ -7,6 +7,9 @@ global using MeridianAgent.Infrastructure.AI.Agents;
 global using MeridianAgent.Infrastructure.Data;
 global using MeridianAgent.Infrastructure.External;
 global using MeridianAgent.Infrastructure.Scheduling;
+global using MeridianAgent.Infrastructure.Services;
 global using MeridianAgent.Web.Components;
 global using MeridianAgent.Web.Components.State;
 global using Serilog;
+
+global using MudBlazor.Services;

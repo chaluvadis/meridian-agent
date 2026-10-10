@@ -1,6 +1,14 @@
 namespace MeridianAgent.Domain.Entities;
 
 /// <summary>Traveler preferences the Context and Safeguard agents read from.</summary>
+/// <remarks>
+/// The first block of properties is the agent-facing contract the pipeline has always read:
+/// <see cref="DietaryRules" />, <see cref="Interests" />, <see cref="AvoidList" />,
+/// <see cref="Pacing" />, <see cref="Budget" />, <see cref="GroupComposition" /> and
+/// <see cref="TravelerProfile" />. Onboarding writes those fields by mapping the richer
+/// preferences it captures (the second block) onto them, so the agents keep working unchanged
+/// while the profile carries the full picture the traveler actually gave us.
+/// </remarks>
 public sealed record UserProfile
 {
     [JsonPropertyName("id")]
@@ -39,5 +47,74 @@ public sealed record UserProfile
     [JsonPropertyName("home_base")]
     public string? HomeBase { get; init; }
 
+    // ---- Preferences captured by the onboarding wizard -------------------------------
+    // Kept exactly as the traveler picked them; mapped onto the agent-facing fields above.
+
+    [JsonPropertyName("travel_style")]
+    public string TravelStyle { get; init; } = TravelerOnboardingDraft.TravelStyles[1].Value;
+
+    [JsonPropertyName("energy_pattern")]
+    public string EnergyPattern { get; init; } = TravelerOnboardingDraft.EnergyPatterns[3].Value;
+
+    [JsonPropertyName("dietary_restrictions")]
+    public IReadOnlyList<string> DietaryRestrictions { get; init; } = Array.Empty<string>();
+
+    [JsonPropertyName("spice_tolerance")]
+    public int SpiceTolerance { get; init; }
+
+    [JsonPropertyName("favorite_cuisines")]
+    public IReadOnlyList<string> FavoriteCuisines { get; init; } = Array.Empty<string>();
+
+    [JsonPropertyName("dining_vibe")]
+    public IReadOnlyList<string> DiningVibe { get; init; } = Array.Empty<string>();
+
+    [JsonPropertyName("core_interests")]
+    public IReadOnlyList<string> CoreInterests { get; init; } = Array.Empty<string>();
+
+    [JsonPropertyName("hard_avoids")]
+    public IReadOnlyList<string> HardAvoids { get; init; } = Array.Empty<string>();
+
+    [JsonPropertyName("budget_comfort")]
+    public string BudgetComfort { get; init; } = TravelerOnboardingDraft.BudgetComforts[1].Value;
+
+    [JsonPropertyName("mobility")]
+    public string Mobility { get; init; } = TravelerOnboardingDraft.MobilityOptions[0].Value;
+
+    /// <summary>Onboarding label for the traveling party (mapped to <see cref="GroupComposition" />).</summary>
+    [JsonPropertyName("travel_group")]
+    public string TravelGroup { get; init; } = TravelerOnboardingDraft.TravelGroups[0].Value;
+
+    [JsonPropertyName("first_time_visitor")]
+    public bool FirstTimeVisitor { get; init; } = true;
+
+    // ---- Lifecycle flags --------------------------------------------------------------
+
+    /// <summary>True once the onboarding wizard has been completed; gates the /onboarding guard.</summary>
+    [JsonPropertyName("onboarding_completed")]
+    public bool OnboardingCompleted { get; init; }
+
+    /// <summary>True right after onboarding so the chat can greet the traveler once.</summary>
+    [JsonPropertyName("pending_welcome")]
+    public bool PendingWelcome { get; init; }
+
     public static UserProfile Default => new();
+
+    /// <summary>
+    /// Local, model-free greeting for the first chat after onboarding — used when the Synthesizer
+    /// cannot produce one. Warm on purpose: the traveler should still feel recognized.
+    /// </summary>
+    public string BuildWelcomeFallback()
+    {
+        var interests = CoreInterests.Count > 0 ? CoreInterests : Interests;
+        var avoids = HardAvoids.Count > 0 ? HardAvoids : AvoidList;
+        var flavour = interests.Count > 0
+            ? $"I've learned you're a {TravelStyle.ToLowerInvariant()} traveler who loves {string.Join(", ", interests.Take(3))}"
+            : $"I've learned you're a {TravelStyle.ToLowerInvariant()} traveler";
+
+        var avoid = avoids.Count > 0
+            ? $", and that {string.Join(", ", avoids.Take(2))} stays off your list"
+            : string.Empty;
+
+        return $"Welcome, {DisplayName}! {flavour}{avoid}. Ask me anything — I'll keep it in mind.";
+    }
 }

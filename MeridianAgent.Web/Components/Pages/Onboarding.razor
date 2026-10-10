@@ -1,0 +1,19 @@
+@page "/onboarding"
+@rendermode InteractiveServer
+@layout OnboardingLayout
+@using MeridianAgent.Web.Components.Onboarding
+@inject IJSRuntime JSRuntime
+
+@* First-time travelers only: the router redirects here until a profile exists, and back to the
+   chat once this wizard has been completed. *@
+<OnboardingWizard Mode="WizardMode.Onboarding" />
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JSRuntime.InvokeVoidAsync("setDocumentTitle", "Welcome — The Meridian Agent");
+        }
+    }
+}

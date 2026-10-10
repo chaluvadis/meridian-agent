@@ -19,3 +19,4 @@ global using MeridianAgent.Infrastructure.AI.Agents;
 global using MeridianAgent.Infrastructure.Data;
 global using MeridianAgent.Infrastructure.External;
 global using MeridianAgent.Infrastructure.Scheduling;
+global using MeridianAgent.Infrastructure.Services;

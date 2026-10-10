@@ -99,6 +99,41 @@ public sealed class SynthesizerAgent(
         OUTPUT: Plain text only. No JSON, no markdown, no code blocks.
         """;
 
+    private const string WelcomePrompt = """
+        You are The Meridian Agent — a highly personalized, empathetic, and discreet travel concierge. The traveler has just finished onboarding, and you are speaking for the very first time. They have told you a lot about themselves, and this first message proves it.
+
+        YOUR PERSONALITY:
+        - Warm, like a knowledgeable local friend
+        - Concise — never ramble
+        - Discreet — you give heads-ups, not lectures
+        - You NEVER use phrases like "As an AI", "I recommend that you", "You might want to consider"
+
+        <traveler>
+        Name: $TravelerName
+        Destination: $Destination
+        Travel style: $TravelStyle
+        Energy pattern: $EnergyPattern
+        Traveling as: $TravelGroup
+        First-time visitor: $FirstTimeVisitor
+        Dietary restrictions: $DietaryRestrictions
+        Spice tolerance: $SpiceTolerance
+        Favorite cuisines: $FavoriteCuisines
+        Dining vibe: $DiningVibe
+        Core interests: $CoreInterests
+        Hard avoids: $HardAvoids
+        Budget comfort: $BudgetComfort
+        Mobility: $Mobility
+        </traveler>
+
+        RESPONSE RULES:
+        1. OPENING: Greet them by their first name — one warm sentence that makes them feel recognized, not processed.
+        2. PROOF YOU LISTENED: Weave in two or three of their actual preferences (travel style plus interests, dietary rules, or things they want to avoid). Be specific: say what they chose, not "your preferences".
+        3. THE OFFER: Tell them you will quietly work around what they want and what they would rather skip — then invite them to ask for anything, in their own words.
+        4. FORMATTING: 2-3 short sentences. No JSON, no markdown, no bullet points, no sign-off like "Is there anything else I can help you with?".
+
+        OUTPUT: Plain text only.
+        """;
+
     public override string AgentName => "SynthesizerAgent";
 
     public override string SanitizerModel { get; } = DefaultModel;
@@ -160,6 +195,55 @@ public sealed class SynthesizerAgent(
             suggestions.Count);
 
         return message;
+    }
+
+    /// <summary>Speaks the first message in a brand-new chat, right after onboarding.</summary>
+    public async Task<string> ExecuteWelcomeAsync(
+        UserProfile profile,
+        CancellationToken cancellationToken = default)
+    {
+        var interests = profile.CoreInterests.Count > 0 ? profile.CoreInterests : profile.Interests;
+
+        var prompt = PromptRenderer.Render(
+            WelcomePrompt,
+            new Dictionary<string, string>
+            {
+                ["TravelerName"] = profile.DisplayName,
+                ["Destination"] = string.IsNullOrWhiteSpace(profile.Destination) ? "their destination" : profile.Destination,
+                ["TravelStyle"] = profile.TravelStyle,
+                ["EnergyPattern"] = profile.EnergyPattern,
+                ["TravelGroup"] = profile.TravelGroup,
+                ["FirstTimeVisitor"] = profile.FirstTimeVisitor ? "yes" : "no",
+                ["DietaryRestrictions"] = List(profile.DietaryRestrictions.Count > 0 ? profile.DietaryRestrictions : profile.DietaryRules),
+                ["SpiceTolerance"] = new TravelerOnboardingDraft { SpiceTolerance = profile.SpiceTolerance }.SpiceLabel,
+                ["FavoriteCuisines"] = List(profile.FavoriteCuisines),
+                ["DiningVibe"] = List(profile.DiningVibe),
+                ["CoreInterests"] = List(interests),
+                ["HardAvoids"] = List(profile.HardAvoids.Count > 0 ? profile.HardAvoids : profile.AvoidList),
+                ["BudgetComfort"] = profile.BudgetComfort,
+                ["Mobility"] = profile.Mobility,
+            });
+
+        var builder = new StringBuilder();
+        await foreach (var token in Client
+            .StreamAsync(
+                new LlmRequest(Model, prompt, JsonMode: false, Temperature: 0.7),
+                cancellationToken)
+            .ConfigureAwait(false))
+        {
+            builder.Append(token);
+        }
+
+        var message = builder.ToString().Trim();
+        Logger.LogInformation(
+            "Synthesized welcome message ({WordCount} words) for {TravelerName}",
+            message.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length,
+            profile.DisplayName);
+
+        return message;
+
+        static string List(IReadOnlyList<string> values) =>
+            values.Count == 0 ? "none shared" : string.Join(", ", values);
     }
 
     private static string BuildPrompt(SynthesisRequest request)

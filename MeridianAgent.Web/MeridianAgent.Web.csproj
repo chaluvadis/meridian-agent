@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="MudBlazor" Version="9.11.0" />
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
     <!-- .NET 11 keeps the SignalR client out of the shared framework; rc.1 matches the SDK. -->
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="11.0.0-rc.1.26425.128" />

@@ -1,0 +1,22 @@
+@inherits LayoutComponentBase
+@using MeridianAgent.Web.Components.Theme
+
+@*
+    Distraction-free shell for the onboarding wizard: no sidebar, no nav, just the wizard.
+    Owns the MudBlazor providers this layout needs.
+*@
+<MudThemeProvider Theme="MeridianTheme.Meridian" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<div class="onboarding-shell">
+    <div class="onboarding-brand">
+        <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Medium">
+            <MudIcon Icon="@Icons.Material.Filled.Explore" />
+        </MudAvatar>
+        <MudText Typo="Typo.h6">The Meridian Agent</MudText>
+    </div>
+
+    @Body
+</div>

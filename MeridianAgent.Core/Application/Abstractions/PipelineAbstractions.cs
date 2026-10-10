@@ -40,6 +40,12 @@ public interface ISynthesizerAgent
         IReadOnlyList<ProactiveSuggestion> suggestions,
         ProactiveRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Speaks the first message in a fresh chat: greets the traveler by name and shows the
+    /// preferences the agent now knows about. Used once, right after onboarding.
+    /// </summary>
+    Task<string> ExecuteWelcomeAsync(UserProfile profile, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Generates unprompted suggestions from the traveler's profile, context, and nearby venues.</summary>
@@ -78,6 +84,26 @@ public interface IUserProfileStore
     Task SaveAsync(UserProfile profile, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<UserProfile>> ListAsync(CancellationToken cancellationToken = default);
+}
+
+/// <summary>The traveler id the app runs under: one profile, one onboarding state.</summary>
+public interface IUserProfileService
+{
+    const string DefaultProfileId = "default";
+
+    /// <summary>The stored profile, or null when the traveler has never completed onboarding.</summary>
+    Task<UserProfile?> GetProfileAsync(string profileId = DefaultProfileId, CancellationToken cancellationToken = default);
+
+    /// <summary>The stored profile, or <see cref="UserProfile.Default" /> when there is none yet.</summary>
+    Task<UserProfile> GetOrCreateAsync(string profileId = DefaultProfileId, CancellationToken cancellationToken = default);
+
+    /// <summary>True once onboarding has been completed; this is the first-time-user check.</summary>
+    Task<bool> HasCompletedProfileAsync(string profileId = DefaultProfileId, CancellationToken cancellationToken = default);
+
+    Task SaveProfileAsync(UserProfile profile, CancellationToken cancellationToken = default);
+
+    /// <summary>Clears the pending-welcome flag so the greeting is shown exactly once.</summary>
+    Task MarkWelcomeSeenAsync(string profileId = DefaultProfileId, CancellationToken cancellationToken = default);
 }
 
 public interface IRulebookStore

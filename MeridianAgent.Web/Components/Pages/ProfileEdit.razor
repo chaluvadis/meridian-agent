@@ -1,0 +1,18 @@
+@page "/profile/edit"
+@rendermode InteractiveServer
+@using MeridianAgent.Web.Components.Onboarding
+@inject IJSRuntime JSRuntime
+
+@* Same wizard as first-run onboarding, pre-populated and saving with one click.
+   Reached from the settings icon in the app bar. *@
+<OnboardingWizard Mode="WizardMode.Edit" />
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JSRuntime.InvokeVoidAsync("setDocumentTitle", "Edit profile — The Meridian Agent");
+        }
+    }
+}

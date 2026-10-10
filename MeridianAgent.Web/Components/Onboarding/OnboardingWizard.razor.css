@@ -1,0 +1,280 @@
+/*
+    Onboarding wizard styling: warm cream shell, generous touch targets, and a fade + slide
+    transition as each step changes. Scoped to OnboardingWizard.razor.
+*/
+.onboarding-wizard {
+    width: 100%;
+}
+
+.onboarding-container {
+    padding-top: 0.5rem;
+    padding-bottom: 2rem;
+}
+
+.onboarding-heading {
+    text-align: center;
+    margin: 0 auto 1rem;
+    max-width: 32rem;
+}
+
+.onboarding-heading-sub {
+    color: #92400E;
+}
+
+.onboarding-paper {
+    background: #FFFDF6;
+    border-radius: 16px;
+    padding: 0.5rem;
+    overflow: visible;
+}
+
+/* Stepper */
+
+.onboarding-stepper .mud-stepper-nav {
+    padding: 0.75rem 0.5rem;
+}
+
+.onboarding-stepper .mud-step-label {
+    font-size: 0.85rem;
+}
+
+/* Step body: fade + slide in on every step change */
+
+.onboarding-step-body,
+.onboarding-welcome {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 0.75rem 0.5rem 1rem;
+    animation: onboarding-step-in 0.32s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.onboarding-welcome {
+    align-items: center;
+    text-align: center;
+    padding: 1.5rem 0.75rem 1rem;
+}
+
+@@keyframes onboarding-step-in {
+    from {
+        opacity: 0;
+        transform: translateY(14px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Welcome */
+
+.onboarding-hero {
+    width: 88px !important;
+    height: 88px !important;
+    background: linear-gradient(135deg, #D97706, #F59E0B) !important;
+    box-shadow: 0 12px 28px rgba(217, 119, 6, 0.35);
+    margin-bottom: 0.5rem;
+}
+
+.onboarding-promises {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    width: 100%;
+    max-width: 26rem;
+    margin: 0.5rem 0 0.25rem;
+    text-align: left;
+}
+
+.onboarding-promise {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: rgba(217, 119, 6, 0.07);
+    border: 1px solid rgba(217, 119, 6, 0.16);
+    border-radius: 12px;
+    padding: 0.7rem 0.9rem;
+    font-size: 0.92rem;
+    color: #451A03;
+}
+
+/* Questions, fields, radio rows */
+
+.onboarding-question {
+    margin-bottom: 0.35rem;
+    color: #451A03;
+}
+
+.onboarding-field {
+    margin-top: 0.25rem;
+}
+
+.onboarding-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.onboarding-radio {
+    width: 100%;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    border-radius: 12px;
+    padding: 0.25rem 0.5rem;
+    transition: background-color 0.15s ease;
+}
+
+.onboarding-radio:hover {
+    background: rgba(217, 119, 6, 0.06);
+}
+
+.onboarding-radio .mud-radio-label {
+    font-size: 1rem;
+}
+
+/* Chips: filter chips, comfortable tap targets, small lift on hover */
+
+.onboarding-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.onboarding-chips .mud-chip {
+    min-height: 40px;
+    border-radius: 20px;
+    font-size: 0.92rem;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.onboarding-chips .mud-chip:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(217, 119, 6, 0.18);
+}
+
+.onboarding-chips .mud-chip.mud-checked {
+    background: rgba(217, 119, 6, 0.12) !important;
+    border-color: #D97706 !important;
+}
+
+/* Spice slider */
+
+.onboarding-slider-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.onboarding-slider-title {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.onboarding-slider-value {
+    color: #B45309 !important;
+    font-weight: 600;
+}
+
+.onboarding-slider {
+    margin-top: 0.5rem;
+}
+
+.onboarding-slider-ends {
+    display: flex;
+    justify-content: space-between;
+    color: #92400E;
+    font-size: 0.78rem;
+}
+
+/* Review cards */
+
+.onboarding-summary-card {
+    background: #FFFBEB !important;
+    border-color: rgba(217, 119, 6, 0.28) !important;
+    border-radius: 12px !important;
+    padding: 0.85rem 1rem !important;
+    height: 100%;
+}
+
+.onboarding-summary-line {
+    margin: 0.15rem 0;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.onboarding-review-note {
+    color: #92400E;
+    margin-top: 0.5rem;
+}
+
+/* Actions row */
+
+.onboarding-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem 0.75rem;
+    border-top: 1px solid rgba(217, 119, 6, 0.15);
+}
+
+.onboarding-cta {
+    min-width: 9.5rem;
+    min-height: 48px;
+    border-radius: 12px;
+}
+
+/* First-time toggle */
+
+.onboarding-switch {
+    margin-top: 0.25rem;
+}
+
+/* Onboarding shell: the distraction-free full-screen backdrop */
+
+.onboarding-shell {
+    min-height: 100vh;
+    background: linear-gradient(165deg, #FFFBEB 0%, #FEF3C7 55%, #FDE68A 100%);
+    padding: 1.5rem 0.75rem 2.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.onboarding-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+    color: #451A03;
+    font-weight: 700;
+}
+
+/* Mobile-first: comfortable single column up to 600px */
+
+@@media (max-width: 600px) {
+    .onboarding-shell {
+        padding: 1rem 0.5rem 2rem;
+    }
+
+    .onboarding-paper {
+        padding: 0.25rem;
+        border-radius: 14px;
+    }
+
+    .onboarding-chips .mud-chip {
+        flex: 1 1 auto;
+        justify-content: center;
+    }
+
+    .onboarding-actions {
+        flex-wrap: wrap;
+    }
+
+    .onboarding-cta {
+        flex: 1;
+    }
+}

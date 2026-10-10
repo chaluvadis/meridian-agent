@@ -121,6 +121,38 @@ a {
     flex: 1;
 }
 
+/* Chat header actions */
+
+.chat-toolbar button {
+    min-width: 44px;
+    min-height: 32px;
+}
+
+/* Onboarding: distraction-free warm shell (wizard internals live in OnboardingWizard.razor.css) */
+
+.onboarding-shell {
+    min-height: 100vh;
+    background: linear-gradient(165deg, #FFFBEB 0%, #FEF3C7 55%, #FDE68A 100%);
+    padding: 1.5rem 0.75rem 2.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.onboarding-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+    color: #451a03;
+    font-weight: 700;
+}
+
+.onboarding-shell .mud-main-content,
+.onboarding-shell .mud-paper {
+    width: 100%;
+}
+
 /* Map */
 
 .meridian-map {
@@ -166,5 +198,9 @@ a {
 
     .chat-timestamp {
         display: none;
+    }
+
+    .onboarding-shell {
+        padding: 1rem 0.5rem 2rem;
     }
 }

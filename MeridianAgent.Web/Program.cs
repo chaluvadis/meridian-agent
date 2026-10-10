@@ -33,8 +33,14 @@ builder.Services.AddHttpClient<NominatimClient>();
 builder.Services.AddHttpClient<OsrmClient>();
 builder.Services.AddHttpClient<WeatherClient>();
 builder.Services.AddSingleton<ITravelContextProvider, LiveTravelContextProvider>();
+// Legacy JSON profiles: read-only now, used to seed SQLite on first run.
 builder.Services.AddSingleton<IUserProfileStore, JsonFileUserProfileStore>();
 builder.Services.AddSingleton<IUserProfileService, UserProfileService>();
+// Structured traveler state lives in SQLite. The factory lifetime keeps the singleton profile
+// service safe in Blazor Server: contexts are short-lived and created per operation.
+var meridianConnectionString = builder.Configuration.GetConnectionString("Meridian")
+                               ?? MeridianDatabase.DefaultConnectionString;
+builder.Services.AddMeridianDatabase(meridianConnectionString);
 builder.Services.AddSingleton<IRulebookStore, JsonFileRulebookStore>();
 builder.Services.AddSingleton<INearbyVenueStore, JsonFileNearbyVenueStore>();
 builder.Services.AddSingleton<VectorRulebookNarrower>();
@@ -54,6 +60,11 @@ builder.Services.AddScoped<TravelQueryOrchestrator>();
 builder.Services.AddScoped<ChatState>();
 builder.Services.AddScoped<MapState>();
 var app = builder.Build();
+
+// SQLite: apply pending migrations before the first request, then import the JSON profiles written
+// by builds before SQLite so existing travelers keep their preferences.
+await app.Services.GetRequiredService<ProfileDatabaseInitializer>().InitializeAsync();
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);

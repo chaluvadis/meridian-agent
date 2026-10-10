@@ -14,6 +14,7 @@ services:
       - Ollama__EmbeddingModel=nomic-embed-text
       - Qdrant__Endpoint=http://qdrant:6333
       - Qdrant__CollectionPrefix=meridian
+      - ConnectionStrings__Meridian=Data Source=/app/data/meridian.db
       - Weather__BaseUrl=https://api.openweathermap.org
       - Weather__ApiKey=${WEATHER_API_KEY:-}
       - Nominatim__BaseUrl=https://nominatim.openstreetmap.org
@@ -21,6 +22,8 @@ services:
       - Storage__DataDirectory=/app/samples
     volumes:
       - ./samples:/app/samples
+      # Traveler profiles live in SQLite; a named volume keeps them across container rebuilds.
+      - meridian-data:/app/data
     depends_on:
       ollama:
         condition: service_started
@@ -81,3 +84,5 @@ services:
 volumes:
   ollama-models:
   qdrant-data:
+  # SQLite profile database for meridian-web.
+  meridian-data:

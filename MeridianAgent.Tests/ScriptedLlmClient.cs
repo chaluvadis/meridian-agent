@@ -15,6 +15,9 @@ public sealed class ScriptedLlmClient : ILlmClient
 
     public List<LlmRequest> Calls { get; } = new();
 
+    /// <summary>Text the next streamed call returns (overrides the scripted queue for one call).</summary>
+    public string Response { get; set; } = "Top pick: Karak House.";
+
     public Task<string> CompleteAsync(LlmRequest request, CancellationToken cancellationToken = default)
     {
         Calls.Add(request);
@@ -30,7 +33,14 @@ public sealed class ScriptedLlmClient : ILlmClient
         Calls.Add(request);
         if (_responses.Count == 0)
         {
-            throw new InvalidOperationException("ScriptedLlmClient has no responses left.");
+            // Nothing scripted: stream the Response text instead of exhausting the queue.
+            foreach (var chunk in Response.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            {
+                await Task.Yield();
+                yield return chunk + " ";
+            }
+
+            yield break;
         }
 
         var response = _responses.Dequeue();

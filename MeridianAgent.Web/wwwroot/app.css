@@ -1,5 +1,35 @@
+/*
+ * The Dubai font (Dubai Executive Council + Microsoft, free to use and redistribute).
+ * If these files are ever removed, download the family from the Microsoft Typography
+ * page for Dubai and drop Dubai-Regular.woff2 / Dubai-Medium.woff2 / Dubai-Bold.woff2
+ * into wwwroot/fonts/Dubai/.
+ */
+@font-face {
+    font-family: 'Dubai';
+    src: url('/fonts/Dubai/Dubai-Regular.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Dubai';
+    src: url('/fonts/Dubai/Dubai-Medium.woff2') format('woff2');
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Dubai';
+    src: url('/fonts/Dubai/Dubai-Bold.woff2') format('woff2');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+
 html, body {
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-family: Dubai, Roboto, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 a {
@@ -53,22 +83,23 @@ a {
 
 .chat-user {
     align-self: flex-end;
-    background: #0d6efd;
+    background: #0F2B46;
     color: #fff;
     border-bottom-right-radius: 0.2rem;
 }
 
 .chat-assistant {
     align-self: flex-start;
-    background: #f1f3f5;
-    color: #212529;
+    background: #F8F9FA;
+    color: #1E293B;
+    border: 1px solid rgba(15, 43, 70, 0.08);
     border-bottom-left-radius: 0.2rem;
 }
 
 /* Proactive messages: the agent spoke without being asked. */
 .chat-bubble.chat-proactive {
-    border-left: 3px solid #f59e0b;
-    background: linear-gradient(to right, rgba(245, 158, 11, 0.08), rgba(245, 158, 11, 0.01) 70%, transparent);
+    border-left: 3px solid #C5A059;
+    background: linear-gradient(to right, rgba(197, 160, 89, 0.10), rgba(197, 160, 89, 0.02) 70%, transparent);
 }
 
 .proactive-badge {
@@ -76,7 +107,7 @@ a {
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: #b45309;
+    color: #8a6d2f;
     margin-bottom: 0.35rem;
 }
 
@@ -88,7 +119,7 @@ a {
     display: block;
     margin-top: 0.25rem;
     font-size: 0.68rem;
-    color: #adb5bd;
+    color: #64748B;
 }
 
 .chat-user .chat-timestamp {
@@ -98,11 +129,11 @@ a {
 .chat-cursor {
     display: inline-block;
     width: 0.45rem;
-    background: #6c757d;
+    background: #0F2B46;
     animation: chat-blink 1s step-end infinite;
 }
 
-@@keyframes chat-blink {
+@keyframes chat-blink {
     50% { opacity: 0; }
 }
 
@@ -121,6 +152,37 @@ a {
     flex: 1;
 }
 
+/* Quick action chips: one tap instead of typing a follow-up. */
+
+.quick-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: -0.25rem 0 0.35rem;
+    padding-left: 0.25rem;
+}
+
+.quick-actions-user {
+    justify-content: flex-end;
+    padding-left: 0;
+}
+
+.quick-action-chip {
+    cursor: pointer;
+    min-height: 40px;
+    border-radius: 20px !important;
+    font-size: 0.875rem !important;
+    border-color: rgba(197, 160, 89, 0.6) !important;
+    color: #0F2B46 !important;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.quick-action-chip:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(15, 43, 70, 0.14);
+    background: rgba(197, 160, 89, 0.10) !important;
+}
+
 /* Chat header actions */
 
 .chat-toolbar button {
@@ -128,11 +190,16 @@ a {
     min-height: 32px;
 }
 
-/* Onboarding: distraction-free warm shell (wizard internals live in OnboardingWizard.razor.css) */
+/*
+    Onboarding wizard. These rules must live here rather than in OnboardingWizard.razor.css:
+    every Class is forwarded onto MudBlazor-rendered DOM (MudText, MudChip, MudChipSet, MudPaper,
+    MudSlider), and CSS isolation only stamps its scope attribute on the component's own HTML —
+    never on MudBlazor's markup — so scoped rules silently never match.
+*/
 
 .onboarding-shell {
     min-height: 100vh;
-    background: linear-gradient(165deg, #FFFBEB 0%, #FEF3C7 55%, #FDE68A 100%);
+    background: linear-gradient(165deg, #F8F9FA 0%, #EEF1F5 55%, #E2E8F0 100%);
     padding: 1.5rem 0.75rem 2.5rem;
     display: flex;
     flex-direction: column;
@@ -144,13 +211,316 @@ a {
     align-items: center;
     gap: 0.6rem;
     margin-bottom: 1rem;
-    color: #451a03;
+    color: #0F2B46;
     font-weight: 700;
 }
 
 .onboarding-shell .mud-main-content,
 .onboarding-shell .mud-paper {
     width: 100%;
+}
+
+.onboarding-wizard {
+    width: 100%;
+}
+
+.onboarding-container {
+    padding-top: 0.5rem;
+    padding-bottom: 2rem;
+}
+
+.onboarding-heading {
+    text-align: center;
+    margin: 0 auto 1rem;
+    max-width: 32rem;
+}
+
+.onboarding-heading-sub {
+    color: #64748B !important;
+}
+
+.onboarding-paper {
+    background: #FFFFFF !important;
+    border-radius: 12px;
+    padding: 0.5rem;
+    overflow: visible;
+}
+
+/* Stepper */
+
+.onboarding-stepper .mud-stepper-nav {
+    padding: 0.75rem 0.5rem;
+}
+
+.onboarding-stepper .mud-step-label {
+    font-size: 0.85rem;
+}
+
+/* Step body: fade + slide in on every step change */
+
+.onboarding-step-body,
+.onboarding-welcome {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 0.75rem 0.5rem 1rem;
+    animation: onboarding-step-in 0.32s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.onboarding-welcome {
+    align-items: center;
+    text-align: center;
+    padding: 1.5rem 0.75rem 1rem;
+}
+
+@keyframes onboarding-step-in {
+    from {
+        opacity: 0;
+        transform: translateY(14px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Welcome */
+
+.onboarding-hero {
+    width: 88px !important;
+    height: 88px !important;
+    background: linear-gradient(135deg, #0F2B46, #1d4368) !important;
+    box-shadow: 0 12px 28px rgba(15, 43, 70, 0.28);
+    margin-bottom: 0.5rem;
+}
+
+.onboarding-promises {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    width: 100%;
+    max-width: 26rem;
+    margin: 0.5rem auto 0.25rem;
+    text-align: left;
+}
+
+.onboarding-promise {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: rgba(15, 43, 70, 0.04);
+    border: 1px solid rgba(15, 43, 70, 0.10);
+    border-radius: 8px;
+    padding: 0.7rem 0.9rem;
+    font-size: 0.92rem;
+    color: #1E293B;
+}
+
+/* Questions and fields */
+
+.onboarding-question {
+    margin-bottom: 0.35rem;
+    color: #1E293B !important;
+}
+
+.onboarding-field {
+    margin-top: 0.25rem;
+}
+
+.onboarding-save-state {
+    display: block;
+    margin-top: 0.35rem;
+    color: #10B981 !important;
+    font-weight: 600;
+    min-height: 1.1rem;
+}
+
+/*
+    Single-choice rows: full-width 56px cards, one tap to answer. The selected row turns solid
+    navy with a gold ring, white bold text and a gold check, so the choice is unmistakable.
+*/
+
+.onboarding-chips-single {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+}
+
+@media (min-width: 601px) {
+    .onboarding-chips-single {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.onboarding-choice-chip {
+    min-height: 56px !important;
+    height: auto !important;
+    border-radius: 8px !important;
+    font-size: 1rem !important;
+    justify-content: flex-start !important;
+    padding: 0 1rem !important;
+    background: #FFFFFF !important;
+    border: 2px solid rgba(15, 43, 70, 0.16) !important;
+    color: #1E293B !important;
+    font-weight: 500 !important;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.onboarding-choice-chip:hover {
+    background: #F1F5F9 !important;
+    border-color: rgba(15, 43, 70, 0.45) !important;
+    color: #0F2B46 !important;
+    transform: translateY(-1px);
+}
+
+.onboarding-choice-chip.mud-chip-selected,
+.onboarding-chips .mud-chip.mud-chip-selected {
+    background: #0F2B46 !important;
+    border-color: #C5A059 !important;
+    color: #FFFFFF !important;
+    font-weight: 700 !important;
+    box-shadow: 0 4px 14px rgba(15, 43, 70, 0.26) !important;
+}
+
+.onboarding-choice-chip.mud-chip-selected:hover,
+.onboarding-chips .mud-chip.mud-chip-selected:hover {
+    background: #14395C !important;
+    color: #FFFFFF !important;
+}
+
+/* A gold check marks the chosen row without changing the label text */
+
+.onboarding-choice-chip.mud-chip-selected::before,
+.onboarding-chips .mud-chip.mud-chip-selected::before {
+    content: "✓";
+    color: #C5A059;
+    font-weight: 700;
+    font-size: 1.05rem;
+    line-height: 1;
+    margin-right: 0.55rem;
+}
+
+/* Multi-select chips: comfortable pill targets, same navy-for-chosen language */
+
+.onboarding-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.onboarding-chips .mud-chip {
+    min-height: 44px;
+    border-radius: 22px;
+    font-size: 0.92rem;
+    background: #FFFFFF !important;
+    border: 1.5px solid rgba(15, 43, 70, 0.16) !important;
+    color: #1E293B !important;
+    font-weight: 500 !important;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.onboarding-chips .mud-chip:hover {
+    background: #F1F5F9 !important;
+    border-color: rgba(15, 43, 70, 0.45) !important;
+    color: #0F2B46 !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(15, 43, 70, 0.14);
+}
+
+.onboarding-chips .mud-chip.mud-chip-selected::before {
+    font-size: 0.9rem;
+    margin-right: 0.35rem;
+}
+
+/* Spice slider */
+
+.onboarding-slider-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.onboarding-slider-title {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.onboarding-slider-value {
+    color: #0F2B46 !important;
+    font-weight: 600;
+}
+
+.onboarding-slider {
+    margin-top: 0.5rem;
+}
+
+.onboarding-slider-ends {
+    display: flex;
+    justify-content: space-between;
+    color: #64748B;
+    font-size: 0.78rem;
+}
+
+/* Review cards */
+
+.onboarding-summary-card {
+    background: #F8F9FA !important;
+    border-color: rgba(15, 43, 70, 0.14) !important;
+    border-radius: 8px !important;
+    padding: 0.85rem 1rem !important;
+    height: 100%;
+}
+
+.onboarding-summary-line {
+    margin: 0.15rem 0;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    color: #1E293B;
+}
+
+.onboarding-review-note {
+    color: #64748B !important;
+    margin-top: 0.5rem;
+}
+
+/* Actions row */
+
+.onboarding-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem 0.75rem;
+    border-top: 1px solid rgba(15, 43, 70, 0.10);
+}
+
+.onboarding-cta {
+    min-width: 9.5rem;
+    min-height: 48px;
+    border-radius: 8px;
+}
+
+/* First-time toggle */
+
+.onboarding-switch {
+    margin-top: 0.25rem;
+}
+
+@media (max-width: 600px) {
+    .onboarding-chips .mud-chip {
+        flex: 1 1 auto;
+        justify-content: center;
+    }
+
+    .onboarding-actions {
+        flex-wrap: wrap;
+    }
+
+    .onboarding-cta {
+        flex: 1;
+    }
 }
 
 /* Map */
@@ -177,17 +547,17 @@ a {
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background: #6c757d;
+    background: #64748B;
     border: 2px solid #fff;
     box-shadow: 0 0 3px rgba(0, 0, 0, 0.4);
 }
 
 .meridian-marker.venue span {
-    background: #ffc107;
-    border-color: #212529;
+    background: #C5A059;
+    border-color: #0F2B46;
 }
 
-@@media (max-width: 576px) {
+@media (max-width: 576px) {
     .chat-shell {
         height: calc(100vh - 5rem);
     }

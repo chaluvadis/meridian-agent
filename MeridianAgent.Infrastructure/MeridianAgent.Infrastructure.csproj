@@ -10,6 +10,11 @@
   <ItemGroup>
     <!-- Hosting + dependency-injection come from the ASP.NET Core shared framework. -->
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="11.0.0-rc.1.26425.128">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="11.0.0-rc.1.26425.128" />
     <PackageReference Include="Polly" Version="8.8.0" />
   </ItemGroup>
 

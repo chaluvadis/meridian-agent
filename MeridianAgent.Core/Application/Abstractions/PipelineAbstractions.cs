@@ -35,6 +35,13 @@ public interface ISynthesizerAgent
 
     Task<string> CompleteAsync(SynthesisRequest request, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Produces the chat message plus the one-tap quick actions that belong beneath it, in a single
+    /// JSON response. When the model fails to produce usable JSON the whole reply is returned as
+    /// the message with no quick actions, so the chat degrades instead of breaking.
+    /// </summary>
+    Task<SynthesisResponse> SynthesizeAsync(SynthesisRequest request, CancellationToken cancellationToken = default);
+
     /// <summary>Formats proactive suggestions into one warm, chat-ready message (no user query exists).</summary>
     Task<string> ExecuteProactiveAsync(
         IReadOnlyList<ProactiveSuggestion> suggestions,

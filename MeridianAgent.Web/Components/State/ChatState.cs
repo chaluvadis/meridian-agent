@@ -34,7 +34,10 @@ public sealed class ChatState
         NotifyChanged();
     }
 
-    public void EndAssistant()
+    /// <summary>
+    /// Commits the streamed reply, attaching the one-tap quick actions that belong under it.
+    /// </summary>
+    public void EndAssistant(IReadOnlyList<QuickAction>? quickActions = null)
     {
         if (StreamingContent is not null)
         {
@@ -43,7 +46,8 @@ public sealed class ChatState
                 "assistant",
                 StreamingContent,
                 DateTime.Now,
-                MessageType.Reactive));
+                MessageType.Reactive,
+                quickActions?.ToList()));
         }
 
         StreamingContent = null;
@@ -98,6 +102,9 @@ public sealed class MapState
 
     public string CenterLabel { get; private set; } = string.Empty;
 
+    /// <summary>Place the map should pan to next; cleared once it has been applied.</summary>
+    public string? FocusLabel { get; private set; }
+
     public event Action? Changed;
 
     public void SetVenues(IReadOnlyList<Venue> venues)
@@ -112,6 +119,13 @@ public sealed class MapState
         _landmarks.Clear();
         _landmarks.AddRange(landmarks);
         CenterLabel = centerLabel;
+        NotifyChanged();
+    }
+
+    /// <summary>Asks the map to pan to a named place (used by "Show on Map" quick actions).</summary>
+    public void SetFocus(string? label)
+    {
+        FocusLabel = string.IsNullOrWhiteSpace(label) ? null : label;
         NotifyChanged();
     }
 

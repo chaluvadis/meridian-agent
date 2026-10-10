@@ -23,6 +23,11 @@ coverage.cobertura.xml
 *.trx
 *.coverage
 
+## Local SQLite profile database (and its journal files)
+meridian.db
+meridian.db-wal
+meridian.db-shm
+
 ## Local secrets / environment
 .env.local
 .env.*.local

@@ -15,8 +15,12 @@
             <MudText Typo="Typo.body2" Class="onboarding-heading-sub">
                 @(Mode == WizardMode.Onboarding
                     ? "Six short steps — every answer shapes how I recommend, warn, and surprise you."
-                    : "Everything here still applies immediately to your recommendations.")
+                    : "Everything here saves itself the moment you stop touching it.")
             </MudText>
+            @if (Mode == WizardMode.Edit)
+            {
+                <MudText Typo="Typo.caption" Class="onboarding-save-state">@AutoSaveLabel</MudText>
+            }
         </div>
 
         <MudPaper Elevation="4" Class="onboarding-paper">
@@ -72,7 +76,9 @@
 
                  <MudStep Title="About you" SecondaryText="Step 1" Completed="_visited[1]" Class="onboarding-step">
                     <div class="onboarding-step-body">
-                        <MudTextField @bind-Value="_draft.DisplayName"
+                        <MudTextField T="string"
+                                      Value="_draft.DisplayName"
+                                      ValueChanged="value => EditAsync(() => _draft.DisplayName = value)"
                                       Label="What should Meridian call you?"
                                       Variant="Variant.Outlined"
                                       Required="true"
@@ -86,20 +92,34 @@
                                       Class="onboarding-field" />
 
                         <MudText Typo="Typo.subtitle1" Class="onboarding-question">How do you like to travel?</MudText>
-                        <MudRadioGroup @bind-Value="_draft.TravelStyle" Class="onboarding-options">
+                        <MudChipSet T="string" Class="onboarding-chips onboarding-chips-single">
                             @foreach (var option in TravelerOnboardingDraft.TravelStyles)
                             {
-                                <MudRadio T="string" Value="@option.Value" Color="Color.Primary" Class="onboarding-radio">@option.Label</MudRadio>
+                                <MudChip T="string"
+                                         Value="@option.Value"
+                                         Text="@option.Label"
+                                         Color="Color.Primary"
+                                         Variant="Variant.Outlined"
+                                         Class="onboarding-choice-chip"
+                                         Selected="@string.Equals(_draft.TravelStyle, option.Value, StringComparison.Ordinal)"
+                                         OnClick="() => EditAsync(() => _draft.TravelStyle = option.Value)" />
                             }
-                        </MudRadioGroup>
+                        </MudChipSet>
 
                         <MudText Typo="Typo.subtitle1" Class="onboarding-question">When are you at your best?</MudText>
-                        <MudRadioGroup @bind-Value="_draft.EnergyPattern" Class="onboarding-options">
+                        <MudChipSet T="string" Class="onboarding-chips onboarding-chips-single">
                             @foreach (var option in TravelerOnboardingDraft.EnergyPatterns)
                             {
-                                <MudRadio T="string" Value="@option.Value" Color="Color.Primary" Class="onboarding-radio">@option.Label</MudRadio>
+                                <MudChip T="string"
+                                         Value="@option.Value"
+                                         Text="@option.Label"
+                                         Color="Color.Primary"
+                                         Variant="Variant.Outlined"
+                                         Class="onboarding-choice-chip"
+                                         Selected="@string.Equals(_draft.EnergyPattern, option.Value, StringComparison.Ordinal)"
+                                         OnClick="() => EditAsync(() => _draft.EnergyPattern = option.Value)" />
                             }
-                        </MudRadioGroup>
+                        </MudChipSet>
                     </div>
                 </MudStep>
 
@@ -115,7 +135,7 @@
                                          Color="Color.Primary"
                                          Variant="Variant.Outlined"
                                          Selected="_draft.DietaryRestrictions.Contains(option.Value)"
-                                         OnClick="() => TravelerOnboardingDraft.Toggle(_draft.DietaryRestrictions, option.Value)" />
+                                         OnClick="() => EditAsync(() => TravelerOnboardingDraft.Toggle(_draft.DietaryRestrictions, option.Value))" />
                             }
                         </MudChipSet>
 
@@ -125,7 +145,8 @@
                                 <MudText Typo="Typo.caption" Class="onboarding-slider-value">@_draft.SpiceLabel 🌶️</MudText>
                             </div>
                             <MudSlider T="int"
-                                       @bind-Value="_draft.SpiceTolerance"
+                                       Value="_draft.SpiceTolerance"
+                                       ValueChanged="value => EditAsync(() => _draft.SpiceTolerance = value)"
                                        Min="0"
                                        Max="5"
                                        Step="1"
@@ -148,7 +169,7 @@
                                          Color="Color.Primary"
                                          Variant="Variant.Outlined"
                                          Selected="_draft.FavoriteCuisines.Contains(option.Value)"
-                                         OnClick="() => TravelerOnboardingDraft.Toggle(_draft.FavoriteCuisines, option.Value)" />
+                                         OnClick="() => EditAsync(() => TravelerOnboardingDraft.Toggle(_draft.FavoriteCuisines, option.Value))" />
                             }
                         </MudChipSet>
 
@@ -162,7 +183,7 @@
                                          Color="Color.Primary"
                                          Variant="Variant.Outlined"
                                          Selected="_draft.DiningVibe.Contains(option.Value)"
-                                         OnClick="() => TravelerOnboardingDraft.Toggle(_draft.DiningVibe, option.Value)" />
+                                         OnClick="() => EditAsync(() => TravelerOnboardingDraft.Toggle(_draft.DiningVibe, option.Value))" />
                             }
                         </MudChipSet>
                     </div>
@@ -180,7 +201,7 @@
                                          Color="Color.Primary"
                                          Variant="Variant.Outlined"
                                          Selected="_draft.CoreInterests.Contains(option.Value)"
-                                         OnClick="() => TravelerOnboardingDraft.Toggle(_draft.CoreInterests, option.Value)" />
+                                         OnClick="() => EditAsync(() => TravelerOnboardingDraft.Toggle(_draft.CoreInterests, option.Value))" />
                             }
                         </MudChipSet>
 
@@ -194,7 +215,7 @@
                                          Color="Color.Error"
                                          Variant="Variant.Outlined"
                                          Selected="_draft.HardAvoids.Contains(option.Value)"
-                                         OnClick="() => TravelerOnboardingDraft.Toggle(_draft.HardAvoids, option.Value)" />
+                                         OnClick="() => EditAsync(() => TravelerOnboardingDraft.Toggle(_draft.HardAvoids, option.Value))" />
                             }
                         </MudChipSet>
                     </div>
@@ -203,30 +224,55 @@
                 <MudStep Title="Logistics" SecondaryText="@(Mode == WizardMode.Onboarding ? "Step 4" : null)" Completed="_visited[4]" Class="onboarding-step">
                     <div class="onboarding-step-body">
                         <MudText Typo="Typo.subtitle1" Class="onboarding-question">Budget comfort</MudText>
-                        <MudRadioGroup @bind-Value="_draft.BudgetComfort" Class="onboarding-options">
+                        <MudChipSet T="string" Class="onboarding-chips onboarding-chips-single">
                             @foreach (var option in TravelerOnboardingDraft.BudgetComforts)
                             {
-                                <MudRadio T="string" Value="@option.Value" Color="Color.Primary" Class="onboarding-radio">@option.Label</MudRadio>
+                                <MudChip T="string"
+                                         Value="@option.Value"
+                                         Text="@option.Label"
+                                         Color="Color.Primary"
+                                         Variant="Variant.Outlined"
+                                         Class="onboarding-choice-chip"
+                                         Selected="@string.Equals(_draft.BudgetComfort, option.Value, StringComparison.Ordinal)"
+                                         OnClick="() => EditAsync(() => _draft.BudgetComfort = option.Value)" />
                             }
-                        </MudRadioGroup>
+                        </MudChipSet>
 
                         <MudText Typo="Typo.subtitle1" Class="onboarding-question">Mobility — how much walking feels right?</MudText>
-                        <MudRadioGroup @bind-Value="_draft.Mobility" Class="onboarding-options">
+                        <MudChipSet T="string" Class="onboarding-chips onboarding-chips-single">
                             @foreach (var option in TravelerOnboardingDraft.MobilityOptions)
                             {
-                                <MudRadio T="string" Value="@option.Value" Color="Color.Primary" Class="onboarding-radio">@option.Label</MudRadio>
+                                <MudChip T="string"
+                                         Value="@option.Value"
+                                         Text="@option.Label"
+                                         Color="Color.Primary"
+                                         Variant="Variant.Outlined"
+                                         Class="onboarding-choice-chip"
+                                         Selected="@string.Equals(_draft.Mobility, option.Value, StringComparison.Ordinal)"
+                                         OnClick="() => EditAsync(() => _draft.Mobility = option.Value)" />
                             }
-                        </MudRadioGroup>
+                        </MudChipSet>
 
                         <MudText Typo="Typo.subtitle1" Class="onboarding-question">Who's traveling?</MudText>
-                        <MudRadioGroup @bind-Value="_draft.TravelGroup" Class="onboarding-options">
+                        <MudChipSet T="string" Class="onboarding-chips onboarding-chips-single">
                             @foreach (var option in TravelerOnboardingDraft.TravelGroups)
                             {
-                                <MudRadio T="string" Value="@option.Value" Color="Color.Primary" Class="onboarding-radio">@option.Label</MudRadio>
+                                <MudChip T="string"
+                                         Value="@option.Value"
+                                         Text="@option.Label"
+                                         Color="Color.Primary"
+                                         Variant="Variant.Outlined"
+                                         Class="onboarding-choice-chip"
+                                         Selected="@string.Equals(_draft.TravelGroup, option.Value, StringComparison.Ordinal)"
+                                         OnClick="() => EditAsync(() => _draft.TravelGroup = option.Value)" />
                             }
-                        </MudRadioGroup>
+                        </MudChipSet>
 
-                        <MudSwitch T="bool" @bind-Value="_draft.FirstTimeVisitor" Color="Color.Primary" Class="onboarding-switch">
+                        <MudSwitch T="bool"
+                                   Value="_draft.FirstTimeVisitor"
+                                   ValueChanged="value => EditAsync(() => _draft.FirstTimeVisitor = value)"
+                                   Color="Color.Primary"
+                                   Class="onboarding-switch">
                             <MudText Typo="Typo.body1">This is my first time in the destination</MudText>
                         </MudSwitch>
                     </div>
@@ -310,7 +356,7 @@
                                    OnClick="CompleteAsync"
                                    Disabled="_saving"
                                    Class="onboarding-cta">
-                            @(_saving ? "Saving…" : (Mode == WizardMode.Onboarding ? "Start Exploring" : "Save Changes"))
+                            @(_saving ? "Saving…" : (Mode == WizardMode.Onboarding ? "Start Exploring" : "Done"))
                         </MudButton>
                     }
                 </div>
@@ -340,6 +386,13 @@
     private int _step;
     private bool _nameError;
     private bool _saving;
+    private int _autoSaveGeneration;
+    private bool _autoSavePending;
+    private bool _autoSaveSaving;
+    private string _autoSaveState = "idle";
+
+    /// <summary>Quiet period after the last change before the profile writes itself (edit mode).</summary>
+    private static readonly TimeSpan AutoSaveDelay = TimeSpan.FromSeconds(1);
 
     protected override async Task OnInitializedAsync()
     {
@@ -354,6 +407,117 @@
             _nameError = false;
         }
     }
+
+    /// <summary>
+    /// Applies one answer and, in edit mode, schedules a debounced auto-save: one second of quiet
+    /// writes the profile and confirms with a subtle "Saved ✓", so there is never a Save button.
+    /// </summary>
+    private async Task EditAsync(Action change)
+    {
+        change();
+
+        if (Mode != WizardMode.Edit)
+        {
+            return;
+        }
+
+        _autoSavePending = true;
+        _autoSaveState = "pending";
+
+        // Generation guard: only the newest debounce window is allowed to write.
+        var generation = ++_autoSaveGeneration;
+        StateHasChanged();
+
+        try
+        {
+            await Task.Delay(AutoSaveDelay);
+
+            if (generation == _autoSaveGeneration)
+            {
+                await AutoSaveAsync(generation);
+            }
+        }
+        catch (ObjectDisposedException)
+        {
+            // The traveler left the page mid-debounce; nothing was pending.
+        }
+        catch (Exception)
+        {
+            // AutoSaveAsync reports failures itself; a stray one must not break the circuit.
+        }
+    }
+
+    private async Task AutoSaveAsync(int generation)
+    {
+        if (!_autoSavePending || _autoSaveSaving)
+        {
+            return;
+        }
+
+        _autoSavePending = false;
+        _autoSaveSaving = true;
+        StateHasChanged();
+
+        try
+        {
+            var existing = await ProfileService.GetProfileAsync();
+            var destination = string.IsNullOrWhiteSpace(existing?.Destination)
+                ? "Dubai, UAE"
+                : existing.Destination;
+
+            var profile = _draft.BuildProfile(
+                existing?.Id ?? IUserProfileService.DefaultProfileId,
+                destination,
+                existing?.HomeBase,
+                existing?.AttireNote,
+                onboardingCompleted: existing?.OnboardingCompleted ?? true,
+                pendingWelcome: false);
+
+            await ProfileService.SaveProfileAsync(profile);
+
+            if (generation == _autoSaveGeneration)
+            {
+                _autoSaveState = "saved";
+
+                try
+                {
+                    Snackbar.Add("Saved ✓", Severity.Success, config => config.VisibleStateDuration = 1400);
+                }
+                catch (ObjectDisposedException)
+                {
+                }
+            }
+        }
+        catch (Exception)
+        {
+            _autoSavePending = true;
+            _autoSaveState = "error";
+
+            try
+            {
+                Snackbar.Add("I couldn't save that — I'll retry on your next change.", Severity.Warning);
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+        }
+        finally
+        {
+            _autoSaveSaving = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>Writes any still-debouncing change so a tap on Done never loses an answer.</summary>
+    private async Task FlushAutoSaveAsync() => await AutoSaveAsync(_autoSaveGeneration);
+
+    private string AutoSaveLabel => _autoSaveState switch
+    {
+        "pending" => _autoSaveSaving ? "Saving…" : "Almost saved…",
+        "saved" => "All changes saved ✓",
+        "error" => "Not saved yet — I'll retry on your next change",
+        _ => "Changes save themselves",
+    };
 
     private void MarkVisited()
     {
@@ -400,6 +564,15 @@
 
         try
         {
+            if (Mode == WizardMode.Edit)
+            {
+                // Auto-save has been keeping up; write anything still debouncing, then finish.
+                await FlushAutoSaveAsync();
+                Snackbar.Add("Profile updated — your recommendations already reflect it.", Severity.Success);
+                Navigation.NavigateTo("/");
+                return;
+            }
+
             var existing = await ProfileService.GetProfileAsync();
             var destination = string.IsNullOrWhiteSpace(existing?.Destination)
                 ? "Dubai, UAE"
@@ -416,9 +589,7 @@
             await ProfileService.SaveProfileAsync(profile);
 
             Snackbar.Add(
-                Mode == WizardMode.Onboarding
-                    ? $"Welcome aboard, {profile.DisplayName.Split(' ')[0]} — I'm getting to know you now."
-                    : "Profile saved — your recommendations already reflect it.",
+                $"Welcome aboard, {profile.DisplayName.Split(' ')[0]} — I'm getting to know you now.",
                 Severity.Success);
 
             Navigation.NavigateTo("/", replace: true);

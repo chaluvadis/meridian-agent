@@ -31,7 +31,7 @@
 
     @if (_showMap)
     {
-        <LeafletMap Venues="MapState.Venues" Landmarks="MapState.Landmarks" />
+        <LeafletMap Venues="MapState.Venues" Landmarks="MapState.Landmarks" FocusLabel="MapState.FocusLabel" />
     }
 
     <div class="chat-messages" @ref="_messagesContainer">
@@ -58,6 +58,23 @@
                 <div class="chat-content">@message.Content</div>
                 <div class="chat-timestamp">@message.Timestamp.ToString("HH:mm")</div>
             </div>
+
+            @if (message.QuickActions is { Count: > 0 })
+            {
+                <div class="quick-actions @(message.Role == "user" ? "quick-actions-user" : null)">
+                    @foreach (var action in message.QuickActions)
+                    {
+                        <MudChip T="string"
+                                 Text="@action.Label"
+                                 Color="Color.Secondary"
+                                 Variant="Variant.Outlined"
+                                 Size="Size.Medium"
+                                 Disabled="@ChatState.IsBusy"
+                                 OnClick="() => HandleQuickAction(action)"
+                                 Class="quick-action-chip" />
+                    }
+                </div>
+            }
         }
 
         @if (ChatState.StreamingContent is not null)
@@ -248,16 +265,24 @@
         StateHasChanged();
 
         TravelRequest? request = null;
+        TravelResponse? response = null;
 
         try
         {
             request = await BuildRequestAsync(query);
+            response = await Orchestrator.SynthesizeAsync(request);
 
-            await foreach (var token in Orchestrator.StreamAsync(request))
+            // The reply is fully generated before anything is shown, so reveal it in a few beats
+            // instead of an instant wall of text — and the chips land with the finished message.
+            foreach (var chunk in RevealChunks(response.ResponseText))
             {
-                ChatState.AppendAssistant(token);
-                await Task.Yield();
+                ChatState.AppendAssistant(chunk);
+                await Task.Delay(12);
             }
+        }
+        catch (OperationCanceledException)
+        {
+            ChatState.AppendAssistant("That's taken me too long — please ask again.");
         }
         catch (Exception ex)
         {
@@ -265,7 +290,7 @@
         }
         finally
         {
-            ChatState.EndAssistant();
+            ChatState.EndAssistant(response?.QuickActions);
 
             var venues = Orchestrator.Blackboard.Itinerary?.Venues ?? Array.Empty<Venue>();
             MapState.SetVenues(venues);
@@ -278,6 +303,49 @@
 
             StateHasChanged();
             await ScrollToBottomAsync();
+        }
+    }
+
+    /// <summary>
+    /// One tap on a chip under an agent message. "Show on Map" pans the map with no LLM call; the
+    /// other two act on the payload exactly as if the traveler had typed it.
+    /// </summary>
+    private async Task HandleQuickAction(QuickAction action)
+    {
+        if (ChatState.IsBusy)
+        {
+            return;
+        }
+
+        if (action.ActionType == QuickActionType.Navigate)
+        {
+            Activity.RecordActivity();
+            await PingHubAsync();
+
+            _showMap = true;
+            MapState.SetFocus(action.Payload);
+            StateHasChanged();
+            return;
+        }
+
+        await SendAsync(action.Payload);
+    }
+
+    /// <summary>Splits the reply into small beats so the reveal keeps the conversational feel.</summary>
+    private static IEnumerable<string> RevealChunks(string text)
+    {
+        var matches = System.Text.RegularExpressions.Regex.Matches(text, @"\S+\s*");
+
+        for (var index = 0; index < matches.Count; index += 3)
+        {
+            var chunk = new System.Text.StringBuilder();
+
+            for (var step = 0; step < 3 && index + step < matches.Count; step++)
+            {
+                chunk.Append(matches[index + step].Value);
+            }
+
+            yield return chunk.ToString();
         }
     }
 

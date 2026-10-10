@@ -82,6 +82,7 @@ All settings come from configuration / environment variables (double underscore 
 | `Ollama__SanitizerModel` | `qwen2.5:1.5b` | JSON sanitizer fallback model |
 | `Qdrant__Endpoint` | `http://localhost:6333` | Vector DB |
 | `Storage__DataDirectory` | `samples` | Profiles / rulebooks / venues on disk |
+| `ConnectionStrings:Meridian` | `Data Source=meridian.db` | SQLite file holding the traveler profile |
 | `Proactive__Enabled` | `true` | Master switch for proactive suggestions |
 | `Proactive__IntervalHours` | `4` | Hours between proactive runs |
 | `Proactive__MinConfidenceScore` | `0.55` | Only suggestions at or above this confidence are spoken |
@@ -121,6 +122,39 @@ The wizard's answers are stored as the traveler picked them, and mapped onto the
 profile fields (`DietaryRules`, `Interests`, `AvoidList`, `Pacing`, `Budget`, `GroupComposition`,
 `TravelerProfile`) — so all agents keep reading exactly the same contract as before, and profiles
 saved earlier keep working unchanged.
+
+Answers are single-tap: every choice is a large chip. Editing a profile (`/profile/edit`) auto-saves
+itself — one second after the last change the profile is written and a subtle "Saved ✓" confirms it,
+so there is no Save button anywhere.
+
+## Typography (the Dubai font)
+
+The interface is set in **Dubai**, the free typeface commissioned by the Dubai Executive Council with
+Microsoft and designed by Monotype. The three weights used by the UI — 400, 500, 700 — are
+self-hosted as `.woff2` in `MeridianAgent.Web/wwwroot/fonts/Dubai/` and declared with `@font-face`
+at the top of `wwwroot/app.css`, so there is no third-party request at runtime and the app still
+renders offline. The MudBlazor theme (`Components/Theme/MeridianTheme.cs`) sets `Dubai` as the
+global family with a system sans fallback if the files are ever missing.
+
+To refresh the files: download the family from the Microsoft Typography page for *Dubai* and copy
+`Dubai-Regular.woff2`, `Dubai-Medium.woff2`, `Dubai-Bold.woff2` into `wwwroot/fonts/Dubai/`.
+
+## Profile storage (SQLite)
+
+The traveler profile lives in a local SQLite database managed with Entity Framework Core:
+`Infrastructure/Data/AppDbContext.cs` maps the existing `UserProfile` record to a single `Profiles`
+table, with string lists stored as JSON columns and the domain enums as readable names. Migrations
+are applied automatically on startup, and JSON profiles written by earlier builds are imported into
+the database on the first run so nothing is lost. The connection string is
+`ConnectionStrings:Meridian` (Docker overrides it to the `/app/data` volume).
+
+## One-tap quick actions in chat
+
+Every reply that proposes something concrete comes back with two or three chips underneath it —
+"📌 Show on Map", "✅ Accept & Plan", "🔄 Find Alternatives". The Synthesizer returns them as JSON
+alongside the message (tolerantly parsed: a broken envelope still yields the message, just without
+chips), and tapping one either pans the map or replays the payload straight through the pipeline, so
+acting on a suggestion never means typing.
 
 ## Logging
 

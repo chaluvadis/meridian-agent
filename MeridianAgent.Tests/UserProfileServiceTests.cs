@@ -1,24 +1,55 @@
 namespace MeridianAgent.Tests;
 
-public class UserProfileServiceTests
+using MeridianAgent.Infrastructure.Data;
+
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+
+public class UserProfileServiceTests : IDisposable
 {
-    private static string TempDirectory()
+    private readonly string _directory;
+    private readonly string _databasePath;
+
+    public UserProfileServiceTests()
     {
-        var directory = Path.Combine(Path.GetTempPath(), "meridian-tests", Guid.NewGuid().ToString("n"));
-        Directory.CreateDirectory(directory);
-        return directory;
+        _directory = Path.Combine(Path.GetTempPath(), "meridian-tests", Guid.NewGuid().ToString("n"));
+        Directory.CreateDirectory(_directory);
+        _databasePath = Path.Combine(_directory, "profiles.db");
     }
 
-    private static UserProfileService CreateService(string directory) => new(
-        new JsonFileUserProfileStore(
-            Options.Create(new StorageOptions { DataDirectory = directory }),
-            NullLogger<JsonFileUserProfileStore>.Instance),
-        NullLogger<UserProfileService>.Instance);
+    public void Dispose()
+    {
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+
+        try
+        {
+            Directory.Delete(_directory, recursive: true);
+        }
+        catch (IOException)
+        {
+            // Windows/CI can hold the file a moment longer; nothing to clean up after a test run.
+        }
+    }
+
+    private UserProfileService CreateService()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlite($"Data Source={_databasePath}")
+            .Options;
+
+        var factory = new TestDbContextFactory(options);
+        var service = new UserProfileService(factory, NullLogger<UserProfileService>.Instance);
+
+        using var context = factory.CreateDbContext();
+        context.Database.Migrate();
+
+        return service;
+    }
 
     [Fact]
     public async Task HasCompletedProfileAsync_IsFalseWhenNothingIsStored()
     {
-        var service = CreateService(TempDirectory());
+        var service = CreateService();
 
         Assert.False(await service.HasCompletedProfileAsync());
     }
@@ -26,10 +57,9 @@ public class UserProfileServiceTests
     [Fact]
     public async Task HasCompletedProfileAsync_IsFalseForAProfileSavedWithoutOnboarding()
     {
-        // The sample profile ships with the app but has never been through onboarding.
-        var directory = TempDirectory();
-        var service = CreateService(directory);
-        await service.SaveProfileAsync(UserProfile.Default with { Id = "default", DisplayName = "Aria" });
+        // Legacy travelers: a profile row that never went through the wizard.
+        var service = CreateService();
+        await service.SaveProfileAsync(UserProfile.Default with { DisplayName = "Aria" });
 
         Assert.False(await service.HasCompletedProfileAsync());
     }
@@ -37,21 +67,18 @@ public class UserProfileServiceTests
     [Fact]
     public async Task SaveProfileAsync_ThenHasCompletedProfileAsync_IsTrue()
     {
-        var directory = TempDirectory();
-        var service = CreateService(directory);
-
-        var profile = TravelerOnboardingDraftRoundTrip(service);
-        await service.SaveProfileAsync(profile);
+        var service = CreateService();
+        await service.SaveProfileAsync(CompletedProfile());
 
         Assert.True(await service.HasCompletedProfileAsync());
     }
 
     [Fact]
-    public async Task SaveProfileAsync_RoundTripsOnboardingPreferences()
+    public async Task SaveProfileAsync_RoundTripsEveryOnboardingPreference()
     {
-        var directory = TempDirectory();
-        var service = CreateService(directory);
-        var saved = TravelerOnboardingDraftRoundTrip(service);
+        var service = CreateService();
+        var saved = CompletedProfile();
+
         await service.SaveProfileAsync(saved);
 
         var reloaded = await service.GetProfileAsync();
@@ -59,32 +86,71 @@ public class UserProfileServiceTests
         Assert.NotNull(reloaded);
         Assert.Equal("Nadia", reloaded!.DisplayName);
         Assert.Equal("Slow Explorer", reloaded.TravelStyle);
+        Assert.Equal("Night Owl", reloaded.EnergyPattern);
+        Assert.Equal("Splurge Occasionally", reloaded.BudgetComfort);
+        Assert.Equal("Minimize Walking", reloaded.Mobility);
+        Assert.Equal("Couple", reloaded.TravelGroup);
         Assert.Equal(3, reloaded.SpiceTolerance);
-        Assert.Contains("Vegetarian", reloaded.DietaryRestrictions);
-        Assert.Contains("Halal", reloaded.DietaryRules);
-        Assert.Contains("Architecture", reloaded.CoreInterests);
-        Assert.Contains("Architecture", reloaded.Interests);
+        Assert.False(reloaded.FirstTimeVisitor);
+
+        Assert.Equal(new[] { "Vegetarian", "Halal" }, reloaded.DietaryRestrictions);
+        Assert.Equal(new[] { "Vegetarian", "Halal" }, reloaded.DietaryRules);
+        Assert.Equal(new[] { "Architecture" }, reloaded.CoreInterests);
+        Assert.Equal(new[] { "Architecture" }, reloaded.Interests);
+        Assert.Equal(new[] { "Crowded Places" }, reloaded.HardAvoids);
+        Assert.Equal(new[] { "Crowded Places" }, reloaded.AvoidList);
+        Assert.Equal(new[] { "Thai" }, reloaded.FavoriteCuisines);
+        Assert.Equal(new[] { "Street Food" }, reloaded.DiningVibe);
+
+        Assert.Equal(PacingPreference.Slow, reloaded.Pacing);
+        Assert.Equal(BudgetRange.Medium, reloaded.Budget);
+        Assert.Equal(GroupComposition.Couple, reloaded.GroupComposition);
+        Assert.Equal(TravelerProfile.Experienced, reloaded.TravelerProfile);
+        Assert.Equal("Dubai, UAE", reloaded.Destination);
         Assert.True(reloaded.OnboardingCompleted);
         Assert.True(reloaded.PendingWelcome);
     }
 
     [Fact]
+    public async Task SaveProfileAsync_ReplacesExistingValuesRatherThanAppending()
+    {
+        var service = CreateService();
+        await service.SaveProfileAsync(CompletedProfile());
+
+        // The traveler drops one interest and adds another: the row must follow, not accumulate.
+        var edited = CompletedProfile() with
+        {
+            CoreInterests = new[] { "Art" },
+            Interests = new[] { "Art" },
+            SpiceTolerance = 5,
+        };
+        await service.SaveProfileAsync(edited);
+
+        var reloaded = await service.GetProfileAsync();
+
+        Assert.NotNull(reloaded);
+        Assert.Single(reloaded!.CoreInterests, "Art");
+        Assert.Equal(5, reloaded.SpiceTolerance);
+        Assert.Equal(1, await CountProfilesAsync(service));
+    }
+
+    [Fact]
     public async Task GetOrCreateAsync_ReturnsDefaultWhenNothingIsStored()
     {
-        var service = CreateService(TempDirectory());
+        var service = CreateService();
 
         var profile = await service.GetOrCreateAsync();
 
         Assert.Equal("Traveler", profile.DisplayName);
+        Assert.Equal("default", profile.Id);
         Assert.False(profile.OnboardingCompleted);
     }
 
     [Fact]
-    public async Task MarkWelcomeSeenAsync_OnlyClearsTheFlag()
+    public async Task MarkWelcomeSeenAsync_ClearsOnlyTheFlag()
     {
-        var directory = TempDirectory();
-        var service = CreateService(directory);
-        await service.SaveProfileAsync(TravelerOnboardingDraftRoundTrip(service));
+        var service = CreateService();
+        await service.SaveProfileAsync(CompletedProfile());
 
         await service.MarkWelcomeSeenAsync();
 
@@ -97,13 +163,12 @@ public class UserProfileServiceTests
     }
 
     [Fact]
-    public async Task MarkWelcomeSeenAsync_IsHarmlessWhenNoProfileOrNoPendingWelcome()
+    public async Task MarkWelcomeSeenAsync_IsHarmlessWithoutAProfileOrPendingWelcome()
     {
-        var directory = TempDirectory();
-        var service = CreateService(directory);
+        var service = CreateService();
 
-        await service.MarkWelcomeSeenAsync(); // no profile at all
-        await service.SaveProfileAsync(UserProfile.Default); // no pending welcome
+        await service.MarkWelcomeSeenAsync();
+        await service.SaveProfileAsync(UserProfile.Default);
         await service.MarkWelcomeSeenAsync();
 
         var profile = await service.GetProfileAsync();
@@ -111,26 +176,101 @@ public class UserProfileServiceTests
         Assert.False(profile!.PendingWelcome);
     }
 
-    private static UserProfile TravelerOnboardingDraftRoundTrip(UserProfileService service)
+    [Fact]
+    public async Task ProfileDatabaseInitializer_ImportsProfilesFromLegacyJson()
+    {
+        var legacyDirectory = Path.Combine(_directory, "legacy");
+        var profilesDirectory = Path.Combine(legacyDirectory, "profiles");
+        Directory.CreateDirectory(profilesDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(profilesDirectory, "default.json"),
+            """
+            {
+              "id": "default",
+              "display_name": "Aria",
+              "destination": "Dubai, UAE",
+              "dietary_rules": ["vegetarian"],
+              "interests": ["old town souks"],
+              "avoid_list": ["crowded mega malls"],
+              "pacing": "moderate",
+              "budget": "medium",
+              "traveler_profile": "first_time",
+              "group_composition": "solo",
+              "onboarding_completed": true
+            }
+            """);
+
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlite($"Data Source={_databasePath}")
+            .Options;
+
+        var factory = new TestDbContextFactory(options);
+        var legacyStore = new JsonFileUserProfileStore(
+            Microsoft.Extensions.Options.Options.Create(new StorageOptions { DataDirectory = legacyDirectory }),
+            NullLogger<JsonFileUserProfileStore>.Instance);
+
+        var initializer = new ProfileDatabaseInitializer(
+            factory,
+            legacyStore,
+            NullLogger<ProfileDatabaseInitializer>.Instance);
+
+        await initializer.InitializeAsync();
+
+        var service = new UserProfileService(factory, NullLogger<UserProfileService>.Instance);
+        var profile = await service.GetProfileAsync();
+
+        Assert.NotNull(profile);
+        Assert.Equal("Aria", profile!.DisplayName);
+        Assert.True(profile.OnboardingCompleted);
+        Assert.Equal(new[] { "old town souks" }, profile.Interests);
+    }
+
+    private async Task<int> CountProfilesAsync(UserProfileService service)
+    {
+        // One context instance reads the whole table: the service API never leaves stray rows.
+        using var context = new TestDbContextFactory(
+            new DbContextOptionsBuilder<AppDbContext>().UseSqlite($"Data Source={_databasePath}").Options)
+            .CreateDbContext();
+
+        return await context.Profiles.CountAsync();
+    }
+
+    private static UserProfile CompletedProfile()
     {
         var draft = new TravelerOnboardingDraft
         {
             DisplayName = "Nadia",
             TravelStyle = "Slow Explorer",
-            BudgetComfort = "Money No Object",
+            EnergyPattern = "Night Owl",
+            BudgetComfort = "Splurge Occasionally",
+            Mobility = "Minimize Walking",
             TravelGroup = "Couple",
             SpiceTolerance = 3,
+            FirstTimeVisitor = false,
         };
         TravelerOnboardingDraft.Toggle(draft.DietaryRestrictions, "Vegetarian");
         TravelerOnboardingDraft.Toggle(draft.DietaryRestrictions, "Halal");
         TravelerOnboardingDraft.Toggle(draft.CoreInterests, "Architecture");
+        TravelerOnboardingDraft.Toggle(draft.HardAvoids, "Crowded Places");
+        TravelerOnboardingDraft.Toggle(draft.FavoriteCuisines, "Thai");
+        TravelerOnboardingDraft.Toggle(draft.DiningVibe, "Street Food");
 
         return draft.BuildProfile(
             IUserProfileService.DefaultProfileId,
             "Dubai, UAE",
-            "Downtown Dubai",
+            null,
             null,
             onboardingCompleted: true,
             pendingWelcome: true);
+    }
+
+    /// <summary>Hands out contexts for one connection string, standing in for the DI factory.</summary>
+    private sealed class TestDbContextFactory : IDbContextFactory<AppDbContext>
+    {
+        private readonly DbContextOptions<AppDbContext> _options;
+
+        public TestDbContextFactory(DbContextOptions<AppDbContext> options) => _options = options;
+
+        public AppDbContext CreateDbContext() => new(_options);
     }
 }

@@ -102,12 +102,12 @@ public sealed class ProactiveSuggestionScheduler : BackgroundService
 
         var suggestionAgent = scope.ServiceProvider.GetRequiredService<IProactiveSuggestionAgent>();
         var synthesizer = scope.ServiceProvider.GetRequiredService<ISynthesizerAgent>();
-        var profileStore = scope.ServiceProvider.GetRequiredService<IUserProfileStore>();
+        var profileService = scope.ServiceProvider.GetRequiredService<IUserProfileService>();
         var contextProvider = scope.ServiceProvider.GetRequiredService<ITravelContextProvider>();
         var nearbyStore = scope.ServiceProvider.GetRequiredService<INearbyVenueStore>();
         var rulebookStore = scope.ServiceProvider.GetRequiredService<IRulebookStore>();
 
-        var profile = await profileStore.GetAsync("default", cancellationToken).ConfigureAwait(false)
+        var profile = await profileService.GetProfileAsync(cancellationToken: cancellationToken).ConfigureAwait(false)
                       ?? UserProfile.Default;
         var location = string.IsNullOrWhiteSpace(profile.HomeBase) ? profile.Destination : profile.HomeBase;
 

@@ -10,11 +10,16 @@
     [Parameter]
     public IReadOnlyList<NearbyVenue> Landmarks { get; set; } = Array.Empty<NearbyVenue>();
 
+    /// <summary>Place to pan to and highlight; triggers the pan when it changes.</summary>
+    [Parameter]
+    public string? FocusLabel { get; set; }
+
     [Inject]
     private IJSRuntime Js { get; set; } = default!;
 
     private ElementReference _mapElement;
     private bool _initialized;
+    private string? _focusedLabel;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -39,6 +44,35 @@
         if (_initialized)
         {
             await UpdateMarkersAsync();
+        }
+
+        if (!string.Equals(_focusedLabel, FocusLabel, StringComparison.Ordinal))
+        {
+            // A new focus request: wait for this render's markers before panning.
+            var label = FocusLabel;
+            _focusedLabel = label;
+
+            if (!string.IsNullOrWhiteSpace(label))
+            {
+                var element = _mapElement;
+
+                if (_initialized)
+                {
+                    await InvokeAsync(async () =>
+                    {
+                        try
+                        {
+                            await Js.InvokeVoidAsync("meridianMap.focusMarker", element, label);
+                        }
+                        catch (JSDisconnectedException)
+                        {
+                        }
+                        catch (ObjectDisposedException)
+                        {
+                        }
+                    });
+                }
+            }
         }
     }
 

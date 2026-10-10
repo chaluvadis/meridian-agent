@@ -90,6 +90,14 @@ public static class TestData
         NearbyVenues,
         Rulebook);
 
+    public static SynthesisRequest SynthesisRequest(
+        string query = "We're exhausted - anywhere good for dinner?",
+        string travelerName = "Aria") => new(
+            query,
+            Itinerary,
+            SafeguardReport.Cleared,
+            travelerName);
+
     public static ExtractedConstraints Constraints => new()
     {
         QueryIntent = QueryIntent.Food,
@@ -279,6 +287,33 @@ public sealed class FakeSynthesizerAgent : ISynthesizerAgent
         await Task.Yield();
         return WelcomeResponse;
     }
+
+    /// <summary>Structured reply (message plus quick actions) returned by <see cref="SynthesizeAsync"/>.</summary>
+    public SynthesisResponse SynthesisResult { get; set; } = new(
+        "Top pick: Karak House.",
+        new[]
+        {
+            new QuickAction("📌 Show on Map", "Karak House", QuickActionType.Navigate),
+            new QuickAction("✅ Accept & Plan", "Plan an evening around Karak House", QuickActionType.AcceptSuggestion),
+            new QuickAction("🔄 Find Alternatives", "somewhere calmer than Karak House", QuickActionType.RefineSearch),
+        });
+
+    public Exception? SynthesisError { get; set; }
+
+    public async Task<SynthesisResponse> SynthesizeAsync(
+        SynthesisRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        Requests.Add(request);
+
+        if (SynthesisError is not null)
+        {
+            throw SynthesisError;
+        }
+
+        await Task.Yield();
+        return SynthesisResult;
+    }
 }
 
 public sealed class FakeProactiveSuggestionAgent : IProactiveSuggestionAgent
@@ -378,6 +413,41 @@ public sealed class StubUserProfileStore : IUserProfileStore
 
     public Task<IReadOnlyList<UserProfile>> ListAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<UserProfile>>(new[] { Profile });
+}
+
+/// <summary>In-memory profile service used by the scheduler tests (SQLite lives in the infra tests).</summary>
+public sealed class StubUserProfileService : IUserProfileService
+{
+    public UserProfile? Profile { get; set; } = TestData.Profile;
+
+    public bool HasCompletedProfile { get; set; } = true;
+
+    public int SaveCount { get; private set; }
+
+    public int MarkWelcomeSeenCount { get; private set; }
+
+    public Task<UserProfile?> GetProfileAsync(string profileId = IUserProfileService.DefaultProfileId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Profile);
+
+    public Task<UserProfile> GetOrCreateAsync(string profileId = IUserProfileService.DefaultProfileId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Profile ?? UserProfile.Default with { Id = profileId });
+
+    public Task<bool> HasCompletedProfileAsync(string profileId = IUserProfileService.DefaultProfileId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(HasCompletedProfile);
+
+    public Task SaveProfileAsync(UserProfile profile, CancellationToken cancellationToken = default)
+    {
+        SaveCount++;
+        Profile = profile;
+        return Task.CompletedTask;
+    }
+
+    public Task MarkWelcomeSeenAsync(string profileId = IUserProfileService.DefaultProfileId, CancellationToken cancellationToken = default)
+    {
+        MarkWelcomeSeenCount++;
+        Profile = Profile is null ? null : Profile with { PendingWelcome = false };
+        return Task.CompletedTask;
+    }
 }
 
 public sealed class StubRulebookStore : IRulebookStore

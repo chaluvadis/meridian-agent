@@ -23,8 +23,27 @@ public sealed record SynthesisRequest(
     SafeguardReport Report,
     string TravelerName = "Traveler");
 
+/// <summary>
+/// A structured Synthesizer response: the message to render plus the one-tap chips that belong
+/// under it. Produced by a single JSON-mode call so the traveler can act without typing.
+/// </summary>
+public sealed record SynthesisResponse(
+    string Message,
+    IReadOnlyList<QuickAction> QuickActions)
+{
+    public static readonly SynthesisResponse Empty = new(string.Empty, Array.Empty<QuickAction>());
+}
+
 /// <summary>Non-streaming result of a full pipeline run.</summary>
 public sealed record TravelResponse(
     string ResponseText,
     ProposedItinerary Itinerary,
-    SafeguardReport SafeguardReport);
+    SafeguardReport SafeguardReport,
+    IReadOnlyList<QuickAction> QuickActions)
+{
+    public static readonly TravelResponse Empty = new(
+        string.Empty,
+        ProposedItinerary.Empty,
+        SafeguardReport.Cleared,
+        Array.Empty<QuickAction>());
+}

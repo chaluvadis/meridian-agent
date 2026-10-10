@@ -20,7 +20,7 @@ public class ProactiveSuggestionSchedulerTests
         {
             [typeof(IProactiveSuggestionAgent)] = suggestionAgent ?? new FakeProactiveSuggestionAgent(),
             [typeof(ISynthesizerAgent)] = synthesizer ?? new FakeSynthesizerAgent(),
-            [typeof(IUserProfileStore)] = new StubUserProfileStore(),
+            [typeof(IUserProfileService)] = new StubUserProfileService(),
             [typeof(IRulebookStore)] = new StubRulebookStore(),
             [typeof(INearbyVenueStore)] = new StubNearbyVenueStore(),
             [typeof(ITravelContextProvider)] = contextProvider ?? new StubTravelContextProvider(),

@@ -82,9 +82,24 @@ All settings come from configuration / environment variables (double underscore 
 | `Ollama__SanitizerModel` | `qwen2.5:1.5b` | JSON sanitizer fallback model |
 | `Qdrant__Endpoint` | `http://localhost:6333` | Vector DB |
 | `Storage__DataDirectory` | `samples` | Profiles / rulebooks / venues on disk |
+| `Proactive__Enabled` | `true` | Master switch for proactive suggestions |
+| `Proactive__IntervalHours` | `4` | Hours between proactive runs |
+| `Proactive__MinConfidenceScore` | `0.55` | Only suggestions at or above this confidence are spoken |
+| `Proactive__CooldownHours` | `2` | Minimum gap before repeating the same suggestion |
+| `Proactive__ActiveWithinMinutes` | `30` | Stay quiet when the traveler has been idle |
 | `Weather__ApiKey` | *(empty)* | OpenWeatherMap; empty = sample context |
 | `Nominatim__BaseUrl` | `https://nominatim.openstreetmap.org` | Geocoding |
 | `Osrm__BaseUrl` | `https://router.project-osrm.org` | Routing |
+
+## Proactive suggestions
+
+Besides answering questions, the agent can speak first. Every N hours (see `Proactive__*` above)
+the `ProactiveSuggestionScheduler` asks the `ProactiveSuggestionAgent` for ideas that fit the
+traveler's current profile, weather, time of day, and nearby venues, has the Synthesizer phrase the
+strongest ones, and pushes the result into the chat through a SignalR hub (`/chatHub`) as a normal
+assistant message — visibly tagged with a "Suggestion" badge and an amber border so it is never
+confused with a reactive answer. Suggestions respect dietary rules and the avoid list, only name
+venues from the nearby list, and stay silent when nothing clears the confidence bar.
 
 No model is hardcoded at the call site: each agent takes its model tag as a constructor argument
 with a default, so swapping `llama3.1:8b` for another local model is a one-line change

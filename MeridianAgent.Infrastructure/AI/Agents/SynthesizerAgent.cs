@@ -67,6 +67,38 @@ public sealed class SynthesizerAgent(
         OUTPUT: Plain text only. No JSON, no markdown, no code blocks.
         """;
 
+    private const string ProactivePrompt = """
+        You are The Meridian Agent — a highly personalized, empathetic, and discreet travel concierge. The traveler has NOT asked anything. You noticed a good moment on your own and are speaking first, briefly, in the middle of a conversation they can still reply to.
+
+        YOUR PERSONALITY:
+        - Warm, like a knowledgeable local friend
+        - Concise — one short message, never more than 120 words
+        - Discreet — you give heads-ups, not lectures
+        - Confident — you make recommendations, not suggestions
+        - You NEVER use phrases like "As an AI", "I recommend that you", "You might want to consider"
+
+        <traveler>
+        Name: $TravelerName
+        Destination: $Destination
+        Current location: $CurrentLocation
+        Local time: $LocalTime
+        Weather: $WeatherSummary
+        </traveler>
+
+        <your_observations>
+        $SuggestionsJson
+        </your_observations>
+
+        RESPONSE RULES:
+        1. Present the top-ranked observation(s) in plain text — at most 3, and only those that genuinely fit this exact moment.
+        2. For each: one short line naming it, one short line saying why it fits them right now (use their preferences when relevant).
+        3. Speak as if you just noticed it yourself ("It's cooling down — X is about ten minutes away"), not like a list of search results.
+        4. End with a light invitation, not a question, and never "Is there anything else I can help you with?"
+        5. No JSON, no markdown, no bullet points, no greetings.
+
+        OUTPUT: Plain text only. No JSON, no markdown, no code blocks.
+        """;
+
     public override string AgentName => "SynthesizerAgent";
 
     public override string SanitizerModel { get; } = DefaultModel;
@@ -92,6 +124,42 @@ public sealed class SynthesizerAgent(
         }
 
         return builder.ToString();
+    }
+
+    public async Task<string> ExecuteProactiveAsync(
+        IReadOnlyList<ProactiveSuggestion> suggestions,
+        ProactiveRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var prompt = PromptRenderer.Render(
+            ProactivePrompt,
+            new Dictionary<string, string>
+            {
+                ["TravelerName"] = request.Profile.DisplayName,
+                ["Destination"] = request.Profile.Destination,
+                ["CurrentLocation"] = request.Context?.Location ?? request.Profile.Destination,
+                ["LocalTime"] = request.Context?.LocalTime ?? "unknown",
+                ["WeatherSummary"] = request.Context?.WeatherSummary ?? "unknown",
+                ["SuggestionsJson"] = JsonElementReader.Serialize(suggestions),
+            });
+
+        var builder = new StringBuilder();
+        await foreach (var token in Client
+            .StreamAsync(
+                new LlmRequest(Model, prompt, JsonMode: false, Temperature: 0.7),
+                cancellationToken)
+            .ConfigureAwait(false))
+        {
+            builder.Append(token);
+        }
+
+        var message = builder.ToString().Trim();
+        Logger.LogInformation(
+            "Synthesized proactive message ({WordCount} words) from {SuggestionCount} suggestion(s)",
+            message.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length,
+            suggestions.Count);
+
+        return message;
     }
 
     private static string BuildPrompt(SynthesisRequest request)

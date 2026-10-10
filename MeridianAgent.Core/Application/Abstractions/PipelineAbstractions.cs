@@ -34,6 +34,41 @@ public interface ISynthesizerAgent
     IAsyncEnumerable<string> StreamAsync(SynthesisRequest request, CancellationToken cancellationToken = default);
 
     Task<string> CompleteAsync(SynthesisRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>Formats proactive suggestions into one warm, chat-ready message (no user query exists).</summary>
+    Task<string> ExecuteProactiveAsync(
+        IReadOnlyList<ProactiveSuggestion> suggestions,
+        ProactiveRequest request,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>Generates unprompted suggestions from the traveler's profile, context, and nearby venues.</summary>
+public interface IProactiveSuggestionAgent
+{
+    string AgentName => "ProactiveSuggestionAgent";
+
+    Task<IReadOnlyList<ProactiveSuggestion>> GenerateAsync(
+        ProactiveRequest request,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Pushes agent-initiated messages to connected chat clients. Implemented in the Web layer so the
+/// scheduling infrastructure never depends on SignalR.
+/// </summary>
+public interface IProactiveChatNotifier
+{
+    Task PublishAsync(string messageId, string content, CancellationToken cancellationToken = default);
+}
+
+/// <summary>Tracks recent traveler interaction so proactive messages only go to an engaged session.</summary>
+public interface IChatActivityTracker
+{
+    void RecordActivity();
+
+    DateTime LastActivityUtc { get; }
+
+    bool IsActive(TimeSpan window);
 }
 
 public interface IUserProfileStore

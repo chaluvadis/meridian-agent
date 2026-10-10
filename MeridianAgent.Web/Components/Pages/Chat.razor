@@ -1,6 +1,7 @@
 @page "/"
 @page "/chat"
 @rendermode InteractiveServer
+@implements IAsyncDisposable
 @inject NavigationManager Navigation
 @inject TravelQueryOrchestrator Orchestrator
 @inject IUserProfileStore ProfileStore
@@ -9,6 +10,8 @@
 @inject ITravelContextProvider ContextProvider
 @inject ChatState ChatState
 @inject MapState MapState
+@inject IChatActivityTracker Activity
+@inject IJSRuntime JSRuntime
 
 <div class="chat-shell">
     <div class="chat-toolbar">
@@ -26,7 +29,7 @@
         <LeafletMap Venues="MapState.Venues" Landmarks="MapState.Landmarks" />
     }
 
-    <div class="chat-messages">
+    <div class="chat-messages" @ref="_messagesContainer">
         @if (ChatState.Messages.Count == 0 && ChatState.StreamingContent is null)
         {
             <div class="chat-empty">
@@ -36,7 +39,20 @@
 
         @foreach (var message in ChatState.Messages)
         {
-            <div class="chat-bubble @(message.Role == "user" ? "chat-user" : "chat-assistant")">@message.Content</div>
+            var bubbleClass = message.Type == MessageType.Proactive
+                ? "chat-bubble chat-assistant chat-proactive"
+                : message.Role == "user"
+                    ? "chat-bubble chat-user"
+                    : "chat-bubble chat-assistant";
+
+            <div class="@bubbleClass">
+                @if (message.Type == MessageType.Proactive)
+                {
+                    <div class="proactive-badge">💡 Suggestion</div>
+                }
+                <div class="chat-content">@message.Content</div>
+                <div class="chat-timestamp">@message.Timestamp.ToString("HH:mm")</div>
+            </div>
         }
 
         @if (ChatState.StreamingContent is not null)
@@ -71,6 +87,8 @@
         "Want to see the old souks before they close?",
     };
 
+    private HubConnection? _hubConnection;
+    private ElementReference _messagesContainer;
     private string _query = string.Empty;
     private bool _showMap;
     private UserProfile _profile = UserProfile.Default;
@@ -80,6 +98,8 @@
 
     protected override async Task OnInitializedAsync()
     {
+        ChatState.Changed += OnStateChanged;
+
         _profile = await ProfileStore.GetAsync("default") ?? UserProfile.Default;
         _profileName = _profile.DisplayName;
         _destination = _profile.Destination;
@@ -88,6 +108,40 @@
         {
             _rulebook = await RulebookStore.GetAsync(_profile.Destination);
         }
+
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/chatHub"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hubConnection.On<string, string>("ReceiveProactiveMessage", (messageId, content) =>
+        {
+            ChatState.AddProactive(messageId, content);
+
+            // A proactive message is agent activity: keep the session fresh enough for more.
+            Activity.RecordActivity();
+
+            return InvokeAsync(async () =>
+            {
+                StateHasChanged();
+                await ScrollToBottomAsync();
+            });
+        });
+
+        try
+        {
+            await _hubConnection.StartAsync();
+            Activity.RecordActivity();
+        }
+        catch (Exception)
+        {
+            // The chat still works without the hub; only proactive messages need it.
+        }
+    }
+
+    private void OnStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
     }
 
     private async Task OnKeyDown(KeyboardEventArgs args)
@@ -107,6 +161,9 @@
             return;
         }
 
+        Activity.RecordActivity();
+        await PingHubAsync();
+
         _query = string.Empty;
         ChatState.AddUser(query);
         ChatState.BeginAssistant();
@@ -121,7 +178,6 @@
             await foreach (var token in Orchestrator.StreamAsync(request))
             {
                 ChatState.AppendAssistant(token);
-                StateHasChanged();
                 await Task.Yield();
             }
         }
@@ -143,6 +199,7 @@
             }
 
             StateHasChanged();
+            await ScrollToBottomAsync();
         }
     }
 
@@ -159,5 +216,36 @@
         };
 
         return new TravelRequest(query, _profile, context, nearby, rulebook);
+    }
+
+    private Task PingHubAsync() => _hubConnection is null || _hubConnection.State != HubConnectionState.Connected
+        ? Task.CompletedTask
+        : _hubConnection.InvokeAsync("Ping");
+
+    private Task ScrollToBottomAsync()
+    {
+        try
+        {
+            return JSRuntime.InvokeVoidAsync("scrollChatToBottom", _messagesContainer).AsTask();
+        }
+        catch (JSException)
+        {
+            // JS may be unavailable during prerender; scrolling is best-effort.
+            return Task.CompletedTask;
+        }
+        catch (ObjectDisposedException)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        ChatState.Changed -= OnStateChanged;
+
+        if (_hubConnection is not null)
+        {
+            await _hubConnection.DisposeAsync();
+        }
     }
 }

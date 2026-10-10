@@ -111,7 +111,7 @@ public sealed class QdrantClient
         {
             var error = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             _logger.LogWarning("Qdrant search in {Collection} failed: {Status} {Error}", collection, (int)response.StatusCode, error);
-            return Array.Empty<QdrantHit>();
+            return [];
         }
 
         var result = await response.Content
@@ -119,7 +119,7 @@ public sealed class QdrantClient
             .ConfigureAwait(false);
 
         var hits = new List<QdrantHit>();
-        foreach (var point in result?.Result ?? Array.Empty<QdrantScoredPoint>())
+        foreach (var point in result?.Result ?? [])
         {
             var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             if (point.Payload is not null)

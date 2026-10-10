@@ -2,6 +2,7 @@ global using System.Runtime.CompilerServices;
 global using System.Text;
 global using System.Text.Json;
 
+global using Microsoft.Extensions.DependencyInjection;
 global using Microsoft.Extensions.Logging.Abstractions;
 global using Microsoft.Extensions.Options;
 
@@ -17,3 +18,4 @@ global using MeridianAgent.Infrastructure.AI;
 global using MeridianAgent.Infrastructure.AI.Agents;
 global using MeridianAgent.Infrastructure.Data;
 global using MeridianAgent.Infrastructure.External;
+global using MeridianAgent.Infrastructure.Scheduling;

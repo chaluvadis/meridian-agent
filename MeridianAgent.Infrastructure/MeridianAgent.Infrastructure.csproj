@@ -8,7 +8,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Hosting + dependency-injection come from the ASP.NET Core shared framework. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Polly" Version="8.8.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MeridianAgent.Tests" />
   </ItemGroup>
 
   <ItemGroup>

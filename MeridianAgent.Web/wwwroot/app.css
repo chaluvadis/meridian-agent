@@ -65,6 +65,36 @@ a {
     border-bottom-left-radius: 0.2rem;
 }
 
+/* Proactive messages: the agent spoke without being asked. */
+.chat-bubble.chat-proactive {
+    border-left: 3px solid #f59e0b;
+    background: linear-gradient(to right, rgba(245, 158, 11, 0.08), rgba(245, 158, 11, 0.01) 70%, transparent);
+}
+
+.proactive-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #b45309;
+    margin-bottom: 0.35rem;
+}
+
+.chat-content {
+    display: contents;
+}
+
+.chat-timestamp {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.68rem;
+    color: #adb5bd;
+}
+
+.chat-user .chat-timestamp {
+    color: rgba(255, 255, 255, 0.75);
+}
+
 .chat-cursor {
     display: inline-block;
     width: 0.45rem;
@@ -132,5 +162,9 @@ a {
 
     .chat-bubble {
         max-width: 95%;
+    }
+
+    .chat-timestamp {
+        display: none;
     }
 }

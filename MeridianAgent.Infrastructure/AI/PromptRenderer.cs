@@ -44,7 +44,7 @@ public sealed record ParseOutcome<T>(T? Value, IReadOnlyList<string> Errors)
 {
     public bool IsSuccess => Errors.Count == 0;
 
-    public static ParseOutcome<T> Ok(T value) => new(value, Array.Empty<string>());
+    public static ParseOutcome<T> Ok(T value) => new(value, []);
 
     public static ParseOutcome<T> Fail(params string[] errors) => new(default, errors);
 }
@@ -96,6 +96,22 @@ public static class JsonElementReader
         }
 
         if (property.ValueKind == JsonValueKind.Number && property.TryGetInt32(out var number))
+        {
+            return number;
+        }
+
+        errors.Add($"field '{name}' must be a number");
+        return fallback;
+    }
+
+    public static double ReadDouble(JsonElement element, string name, List<string> errors, double fallback = 0)
+    {
+        if (!element.TryGetProperty(name, out var property) || property.ValueKind == JsonValueKind.Null)
+        {
+            return fallback;
+        }
+
+        if (property.ValueKind == JsonValueKind.Number && property.TryGetDouble(out var number))
         {
             return number;
         }

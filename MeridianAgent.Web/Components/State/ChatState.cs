@@ -1,10 +1,10 @@
 namespace MeridianAgent.Web.Components.State;
 
+using MeridianAgent.Domain.Entities;
+
 /// <summary>Chat transcript for the current circuit.</summary>
 public sealed class ChatState
 {
-    public sealed record ChatMessage(string Role, string Content);
-
     private readonly List<ChatMessage> _messages = new();
 
     public IReadOnlyList<ChatMessage> Messages => _messages;
@@ -17,7 +17,7 @@ public sealed class ChatState
 
     public void AddUser(string content)
     {
-        _messages.Add(new ChatMessage("user", content));
+        _messages.Add(new ChatMessage(Guid.NewGuid().ToString(), "user", content, DateTime.Now));
         NotifyChanged();
     }
 
@@ -38,11 +38,28 @@ public sealed class ChatState
     {
         if (StreamingContent is not null)
         {
-            _messages.Add(new ChatMessage("assistant", StreamingContent));
+            _messages.Add(new ChatMessage(
+                Guid.NewGuid().ToString(),
+                "assistant",
+                StreamingContent,
+                DateTime.Now,
+                MessageType.Reactive));
         }
 
         StreamingContent = null;
         IsBusy = false;
+        NotifyChanged();
+    }
+
+    /// <summary>Adds an agent-initiated message that arrived over the chat hub while nobody asked.</summary>
+    public void AddProactive(string messageId, string content)
+    {
+        _messages.Add(new ChatMessage(
+            messageId,
+            "assistant",
+            content,
+            DateTime.Now,
+            MessageType.Proactive));
         NotifyChanged();
     }
 

@@ -42,7 +42,7 @@ public sealed class JsonFileNearbyVenueStore : INearbyVenueStore
         }
 
         _logger.LogInformation("No nearby venues found for {Location}; returning empty list", location);
-        return Array.Empty<NearbyVenue>();
+        return [];
     }
 
     private IEnumerable<string> CandidatePaths(string location)

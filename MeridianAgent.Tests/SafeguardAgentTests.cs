@@ -1,9 +1,3 @@
-using MeridianAgent.Domain;
-using MeridianAgent.Domain.Exceptions;
-using MeridianAgent.Infrastructure.AI;
-using MeridianAgent.Infrastructure.AI.Agents;
-using Microsoft.Extensions.Logging.Abstractions;
-
 namespace MeridianAgent.Tests;
 
 public class SafeguardAgentTests
@@ -31,7 +25,7 @@ public class SafeguardAgentTests
               "status": "FLAGGED",
               "warnings": [
                 {
-                  "applies_to_venue": "Ippodo Tea Room",
+                  "applies_to_venue": "Karak House",
                   "severity": "medium",
                   "rule_category": "photography",
                   "risk_description": "Photography is prohibited inside the main hall.",
@@ -45,7 +39,7 @@ public class SafeguardAgentTests
 
         Assert.True(report.IsFlagged);
         var warning = Assert.Single(report.Warnings);
-        Assert.Equal("Ippodo Tea Room", warning.AppliesToVenue);
+        Assert.Equal("Karak House", warning.AppliesToVenue);
         Assert.Equal(RiskSeverity.Medium, warning.Severity);
         Assert.Equal(RuleCategory.Photography, warning.RuleCategory);
         Assert.Equal("Keep phones pocketed inside the hall.", warning.GentleFix);
@@ -78,7 +72,7 @@ public class SafeguardAgentTests
         var agent = CreateAgent("""
             {
               "status": "FLAGGED",
-              "warnings": [{"applies_to_venue": "Ippodo Tea Room"}]
+              "warnings": [{"applies_to_venue": "Karak House"}]
             }
             """);
 
@@ -107,9 +101,9 @@ public class SafeguardAgentTests
         await agent.CheckAsync(TestData.Itinerary, TestData.Request());
 
         var prompt = client.Calls[0].Prompt;
-        Assert.Contains("Kyoto, Japan", prompt);
-        Assert.Contains("Photography is prohibited inside the main hall of Kiyomizu-dera.", prompt);
-        Assert.Contains("Ippodo Tea Room", prompt);
+        Assert.Contains("Dubai, UAE", prompt);
+        Assert.Contains("Photographing local people, particularly women, without permission is an offence.", prompt);
+        Assert.Contains("Karak House", prompt);
         Assert.Contains("first-time visitor", prompt);
         Assert.Contains("light scarf in bag", prompt);
         Assert.Contains("Couple", prompt);

@@ -1,5 +1,3 @@
-using System.Text.Json.Serialization;
-
 namespace MeridianAgent.Domain.Entities;
 
 /// <summary>Traveler preferences the Context and Safeguard agents read from.</summary>

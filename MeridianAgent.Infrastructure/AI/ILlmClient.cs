@@ -21,10 +21,6 @@ public interface ILlmClient
 }
 
 /// <summary>Raised when the local Ollama host is unreachable or returns an error.</summary>
-public sealed class LlmException : Exception
+public sealed class LlmException(string message, Exception? innerException = null) : Exception(message, innerException)
 {
-    public LlmException(string message, Exception? innerException = null)
-        : base(message, innerException)
-    {
-    }
 }

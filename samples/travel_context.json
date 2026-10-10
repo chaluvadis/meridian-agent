@@ -1,8 +1,8 @@
 {
-  "location": "Kyoto, Japan",
-  "local_time": "21:40",
+  "location": "Dubai, UAE",
+  "local_time": "20:45",
   "weather_temp_c": 31,
-  "weather_condition": "Rain",
-  "is_raining": true,
-  "weather_summary": "Warm evening rain, 31°C - a good night for staying indoors"
+  "weather_condition": "Clear",
+  "is_raining": false,
+  "weather_summary": "Warm, humid evening, 31°C - the city is still wide awake"
 }

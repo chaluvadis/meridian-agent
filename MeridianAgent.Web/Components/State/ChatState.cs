@@ -1,5 +1,3 @@
-using MeridianAgent.Domain.Entities;
-
 namespace MeridianAgent.Web.Components.State;
 
 /// <summary>Chat transcript for the current circuit.</summary>

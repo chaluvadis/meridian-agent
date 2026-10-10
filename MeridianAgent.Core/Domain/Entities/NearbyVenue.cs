@@ -1,5 +1,3 @@
-using System.Text.Json.Serialization;
-
 namespace MeridianAgent.Domain.Entities;
 
 /// <summary>A venue that exists physically near the traveler, fed to the Search Agent as ground truth.</summary>

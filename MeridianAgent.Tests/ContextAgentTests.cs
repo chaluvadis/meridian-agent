@@ -1,8 +1,3 @@
-using MeridianAgent.Domain;
-using MeridianAgent.Infrastructure.AI;
-using MeridianAgent.Infrastructure.AI.Agents;
-using Microsoft.Extensions.Logging.Abstractions;
-
 namespace MeridianAgent.Tests;
 
 public class ContextAgentTests
@@ -111,8 +106,8 @@ public class ContextAgentTests
         await agent.ExtractAsync(TestData.Request("We're exhausted - anywhere good for dinner?"));
 
         var prompt = client.Calls[0].Prompt;
-        Assert.Contains("Kyoto, Japan", prompt);
-        Assert.Contains("21:40", prompt);
+        Assert.Contains("Dubai, UAE", prompt);
+        Assert.Contains("20:45", prompt);
         Assert.Contains("vegetarian", prompt);
         Assert.Contains("exhausted", prompt);
     }

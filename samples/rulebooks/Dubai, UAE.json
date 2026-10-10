@@ -1,0 +1,40 @@
+{
+  "destination": "Dubai, UAE",
+  "rules": [
+    {
+      "rule_id": "dubai-photo-1",
+      "rule_category": "photography",
+      "rule": "Photographing local people, particularly women, without their permission is an offence.",
+      "severity": "medium",
+      "gentle_fix": "Ask first, or shoot the souk and skyline instead - the architecture does the work."
+    },
+    {
+      "rule_id": "dubai-dress-1",
+      "rule_category": "dress_code",
+      "rule": "Modest dress is expected in public areas - shoulders and knees covered, especially in old Dubai, malls, and government buildings.",
+      "severity": "low",
+      "gentle_fix": "A light scarf or a longer skirt keeps things comfortable and respectful."
+    },
+    {
+      "rule_id": "dubai-pda-1",
+      "rule_category": "pda",
+      "rule": "Public displays of affection beyond hand-holding can attract fines and police attention.",
+      "severity": "medium",
+      "gentle_fix": "Keep it for the hotel terrace or a quieter corner."
+    },
+    {
+      "rule_id": "dubai-alcohol-1",
+      "rule_category": "alcohol",
+      "rule": "Drinking alcohol anywhere other than a licensed venue or private residence is illegal.",
+      "severity": "high",
+      "gentle_fix": "Order it seated at the bar, or take a licensed bottle home for later."
+    },
+    {
+      "rule_id": "dubai-ramadan-1",
+      "rule_category": "behavior",
+      "rule": "During Ramadan, eating, drinking, or smoking in public between dawn and sunset is not permitted.",
+      "severity": "high",
+      "gentle_fix": "Cafés curtain off their windows, and hotel restaurants stay open - head inside during the day."
+    }
+  ]
+}

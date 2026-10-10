@@ -1,9 +1,3 @@
-using System.Text;
-using MeridianAgent.Application.Orchestrator;
-using MeridianAgent.Application.State;
-using MeridianAgent.Domain;
-using Microsoft.Extensions.Logging.Abstractions;
-
 namespace MeridianAgent.Tests;
 
 public class TravelQueryOrchestratorTests
@@ -38,7 +32,7 @@ public class TravelQueryOrchestratorTests
             tokens.Add(token);
         }
 
-        Assert.Equal(new[] { "Top ", "pick: ", "Ippodo Tea Room." }, tokens);
+        Assert.Equal(new[] { "Top ", "pick: ", "Karak House." }, tokens);
         Assert.Single(context.Requests);
         Assert.Single(search.Requests);
         Assert.Single(synthesizer.Requests);
@@ -72,7 +66,7 @@ public class TravelQueryOrchestratorTests
     [Fact]
     public async Task StreamAsync_YieldsFriendlyFallbackWhenNoVenues()
     {
-        var search = new FakeSearchAgent { NoVenuesError = new MeridianAgent.Domain.Exceptions.NoVenuesFoundException("everything is closed") };
+        var search = new FakeSearchAgent { NoVenuesFailures = 2, NoVenuesReason = "everything is closed" };
         var synthesizer = new FakeSynthesizerAgent();
         var orchestrator = CreateOrchestrator(searchAgent: search, synthesizerAgent: synthesizer);
 
@@ -150,7 +144,7 @@ public class TravelQueryOrchestratorTests
 
         var response = await orchestrator.CompleteAsync(TestData.Request());
 
-        Assert.Equal("Top pick: Ippodo Tea Room.", response.ResponseText);
+        Assert.Equal("Top pick: Karak House.", response.ResponseText);
         Assert.Single(response.Itinerary.Venues);
         Assert.False(response.SafeguardReport.IsFlagged);
     }
@@ -158,13 +152,59 @@ public class TravelQueryOrchestratorTests
     [Fact]
     public async Task CompleteAsync_ReturnsFallbackTextWhenNothingFits()
     {
-        var search = new FakeSearchAgent { NoVenuesError = new MeridianAgent.Domain.Exceptions.NoVenuesFoundException("all closed") };
+        var search = new FakeSearchAgent { NoVenuesFailures = 2, NoVenuesReason = "all closed" };
         var orchestrator = CreateOrchestrator(searchAgent: search);
 
         var response = await orchestrator.CompleteAsync(TestData.Request());
 
         Assert.Contains("all closed", response.ResponseText);
         Assert.Empty(response.Itinerary.Venues);
+    }
+
+    [Fact]
+    public async Task StreamAsync_RelaxesSoftConstraintsWhenStrictSearchFindsNothing()
+    {
+        var search = new FakeSearchAgent { NoVenuesFailures = 1, NoVenuesReason = "interests could not be matched" };
+        var synthesizer = new FakeSynthesizerAgent();
+        var orchestrator = CreateOrchestrator(searchAgent: search, synthesizerAgent: synthesizer);
+
+        var tokens = new List<string>();
+        await foreach (var token in orchestrator.StreamAsync(TestData.Request()))
+        {
+            tokens.Add(token);
+        }
+
+        // The strict attempt ran first, then one relaxed retry that succeeded.
+        Assert.Equal(2, search.Requests.Count);
+        Assert.Equal(new[] { "Top ", "pick: ", "Karak House." }, tokens);
+        Assert.Single(orchestrator.Blackboard.Itinerary!.Venues);
+
+        // The relaxed call keeps the hard constraints and drops the soft ones.
+        var relaxed = search.ConstraintsSeen[1];
+        Assert.Null(relaxed.RelevantInterests);
+        Assert.Null(relaxed.BudgetRange);
+        Assert.Equal(EnergyLevel.Medium, relaxed.EnergyLevel);
+        Assert.Equal(TimeSensitivity.Flexible, relaxed.TimeSensitivity);
+        Assert.NotNull(relaxed.RelevantDietary);
+        Assert.Contains("vegetarian", relaxed.RelevantDietary!);
+        Assert.NotNull(relaxed.AvoidList);
+        Assert.Contains("crowded nightclubs", relaxed.AvoidList!);
+        Assert.Equal(QueryIntent.Food, relaxed.QueryIntent);
+    }
+
+    [Fact]
+    public async Task StreamAsync_FallsBackWhenRelaxedSearchAlsoFindsNothing()
+    {
+        var search = new FakeSearchAgent { NoVenuesFailures = 2, NoVenuesReason = "even relaxed constraints found nothing" };
+        var synthesizer = new FakeSynthesizerAgent();
+        var orchestrator = CreateOrchestrator(searchAgent: search, synthesizerAgent: synthesizer);
+
+        var response = await DrainAsync(orchestrator.StreamAsync(TestData.Request()));
+
+        Assert.Equal(2, search.Requests.Count);
+        Assert.Contains("even relaxed constraints found nothing", response);
+        Assert.Contains("indoor", response);
+        Assert.Empty(synthesizer.Requests);
     }
 
     [Fact]

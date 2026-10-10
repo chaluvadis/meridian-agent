@@ -1,11 +1,3 @@
-using System.Globalization;
-using System.Text.Json;
-using MeridianAgent.Application.Abstractions;
-using MeridianAgent.Domain.Entities;
-using MeridianAgent.Infrastructure.Data;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-
 namespace MeridianAgent.Infrastructure.External;
 
 /// <summary>
@@ -13,29 +5,21 @@ namespace MeridianAgent.Infrastructure.External;
 /// unavailable or no API key is configured, falls back to {DataDirectory}/travel_context.json,
 /// then to a fixed sample so the pipeline always has a reality to work with.
 /// </summary>
-public sealed class LiveTravelContextProvider : ITravelContextProvider
+public sealed class LiveTravelContextProvider(
+    NominatimClient nominatim,
+    WeatherClient weather,
+    IOptions<StorageOptions> storage,
+    ILogger<LiveTravelContextProvider> logger) : ITravelContextProvider
 {
     private static readonly JsonSerializerOptions Options = new()
     {
         PropertyNameCaseInsensitive = true,
     };
 
-    private readonly NominatimClient _nominatim;
-    private readonly WeatherClient _weather;
-    private readonly string _dataDirectory;
-    private readonly ILogger<LiveTravelContextProvider> _logger;
-
-    public LiveTravelContextProvider(
-        NominatimClient nominatim,
-        WeatherClient weather,
-        IOptions<StorageOptions> storage,
-        ILogger<LiveTravelContextProvider> logger)
-    {
-        _nominatim = nominatim;
-        _weather = weather;
-        _dataDirectory = DataPaths.Resolve(storage.Value.DataDirectory);
-        _logger = logger;
-    }
+    private readonly NominatimClient _nominatim = nominatim;
+    private readonly WeatherClient _weather = weather;
+    private readonly string _dataDirectory = DataPaths.Resolve(storage.Value.DataDirectory);
+    private readonly ILogger<LiveTravelContextProvider> _logger = logger;
 
     public async Task<TravelContext> GetCurrentAsync(string location, CancellationToken cancellationToken = default)
     {
@@ -92,12 +76,12 @@ public sealed class LiveTravelContextProvider : ITravelContextProvider
 
         return new TravelContext
         {
-            Location = "Sample City",
-            LocalTime = "21:40",
+            Location = "Dubai, UAE",
+            LocalTime = "20:45",
             TemperatureC = 31,
-            WeatherCondition = "Rain",
-            IsRaining = true,
-            WeatherSummary = "Warm evening rain, 31°C - a good night for staying indoors",
+            WeatherCondition = "Clear",
+            IsRaining = false,
+            WeatherSummary = "Warm, humid evening, 31°C - the city is still wide awake",
         };
     }
 }

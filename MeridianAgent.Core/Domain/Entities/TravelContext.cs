@@ -1,5 +1,3 @@
-using System.Text.Json.Serialization;
-
 namespace MeridianAgent.Domain.Entities;
 
 /// <summary>The live "reality" of the traveler: where they are, what time it is, what the weather is doing.</summary>

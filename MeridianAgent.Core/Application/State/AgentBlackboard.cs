@@ -1,5 +1,3 @@
-using MeridianAgent.Domain.AgentContracts;
-
 namespace MeridianAgent.Application.State;
 
 /// <summary>One value published to the blackboard, kept for debugging and observability.</summary>

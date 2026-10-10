@@ -1,46 +1,39 @@
-using MeridianAgent.Application.Abstractions;
-using MeridianAgent.Application.DTOs;
-using MeridianAgent.Domain;
-using MeridianAgent.Domain.AgentContracts;
-using MeridianAgent.Domain.Entities;
-using MeridianAgent.Domain.Exceptions;
-
 namespace MeridianAgent.Tests;
 
-/// <summary>Shared fixtures: a traveler in Kyoto at 21:40 in the rain.</summary>
+/// <summary>Shared fixtures: a traveler in Dubai at 20:45 on a warm clear evening.</summary>
 public static class TestData
 {
     public static UserProfile Profile => new()
     {
         Id = "default",
         DisplayName = "Aria",
-        Destination = "Kyoto, Japan",
+        Destination = "Dubai, UAE",
         TravelerProfile = TravelerProfile.FirstTime,
         GroupComposition = GroupComposition.Couple,
         DietaryRules = new[] { "vegetarian" },
-        Interests = new[] { "temples", "quiet cafés" },
-        AvoidList = new[] { "crowded nightclubs" },
+        Interests = new[] { "old town souks", "rooftop cafés" },
+        AvoidList = new[] { "crowded mega malls" },
         Pacing = PacingPreference.Moderate,
         Budget = BudgetRange.Medium,
         AttireNote = "light scarf in bag",
-        HomeBase = "Kyoto Station",
+        HomeBase = "Downtown Dubai",
     };
 
     public static TravelContext Context => new()
     {
-        Location = "Kyoto, Japan",
-        LocalTime = "21:40",
+        Location = "Dubai, UAE",
+        LocalTime = "20:45",
         TemperatureC = 31,
-        WeatherCondition = "Rain",
-        IsRaining = true,
-        WeatherSummary = "Warm evening rain, 31°C",
+        WeatherCondition = "Clear",
+        IsRaining = false,
+        WeatherSummary = "Warm, humid evening, 31°C",
     };
 
     public static IReadOnlyList<NearbyVenue> NearbyVenues => new[]
     {
         new NearbyVenue
         {
-            Name = "Ippodo Tea Room",
+            Name = "Karak House",
             Category = "cafe",
             IsOpenNow = true,
             IsIndoor = true,
@@ -49,7 +42,7 @@ public static class TestData
         },
         new NearbyVenue
         {
-            Name = "Gion Night Walk",
+            Name = "Al Fahidi Heritage Walk",
             Category = "activity",
             IsOpenNow = true,
             IsIndoor = false,
@@ -57,7 +50,7 @@ public static class TestData
         },
         new NearbyVenue
         {
-            Name = "Pontocho Alley Food Crawl",
+            Name = "Dubai Mall Food Court",
             Category = "restaurant",
             IsOpenNow = false,
             IsIndoor = false,
@@ -68,14 +61,14 @@ public static class TestData
 
     public static DestinationRulebook Rulebook => new()
     {
-        Destination = "Kyoto, Japan",
+        Destination = "Dubai, UAE",
         Rules = new[]
         {
             new SafeguardRule
             {
-                RuleId = "kyoto-photo-1",
+                RuleId = "dubai-photo-1",
                 Category = RuleCategory.Photography,
-                Rule = "Photography is prohibited inside the main hall of Kiyomizu-dera.",
+                Rule = "Photographing local people, particularly women, without permission is an offence.",
                 Severity = RiskSeverity.Medium,
                 GentleFix = "Keep phones pocketed inside the hall; the veranda is fine for photos.",
             },
@@ -113,7 +106,7 @@ public static class TestData
     {
         new Venue
         {
-            Name = "Ippodo Tea Room",
+            Name = "Karak House",
             VenueType = VenueType.Indoor,
             Category = VenueCategory.Cafe,
             TravelTimeMinutes = 6,
@@ -129,7 +122,7 @@ public static class TestData
         {
             new RiskWarning
             {
-                AppliesToVenue = "Ippodo Tea Room",
+                AppliesToVenue = "Karak House",
                 Severity = RiskSeverity.Low,
                 RuleCategory = RuleCategory.DressCode,
                 RiskDescription = "Shoulders covered at major temples.",
@@ -162,9 +155,14 @@ public sealed class FakeSearchAgent : ISearchAgent
 {
     public List<TravelRequest> Requests { get; } = new();
 
+    public List<ExtractedConstraints> ConstraintsSeen { get; } = new();
+
     public ProposedItinerary Result { get; set; } = TestData.Itinerary;
 
-    public NoVenuesFoundException? NoVenuesError { get; set; }
+    /// <summary>Number of initial calls that fail with NoVenuesFound before <see cref="Result"/> is returned.</summary>
+    public int NoVenuesFailures { get; set; }
+
+    public string NoVenuesReason { get; set; } = "nothing fits";
 
     public Exception? Error { get; set; }
 
@@ -174,9 +172,12 @@ public sealed class FakeSearchAgent : ISearchAgent
         CancellationToken cancellationToken = default)
     {
         Requests.Add(request);
-        if (NoVenuesError is not null)
+        ConstraintsSeen.Add(constraints);
+
+        if (NoVenuesFailures > 0)
         {
-            throw NoVenuesError;
+            NoVenuesFailures--;
+            throw new NoVenuesFoundException(NoVenuesReason);
         }
 
         if (Error is not null)
@@ -212,7 +213,7 @@ public sealed class FakeSynthesizerAgent : ISynthesizerAgent
 {
     public List<SynthesisRequest> Requests { get; } = new();
 
-    public string[] Chunks { get; set; } = new[] { "Top ", "pick: ", "Ippodo Tea Room." };
+    public string[] Chunks { get; set; } = new[] { "Top ", "pick: ", "Karak House." };
 
     public IAsyncEnumerable<string> StreamAsync(SynthesisRequest request, CancellationToken cancellationToken = default)
     {

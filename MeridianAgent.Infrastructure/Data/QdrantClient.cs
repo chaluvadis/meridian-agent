@@ -1,10 +1,3 @@
-using System.Net.Http.Json;
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-
 namespace MeridianAgent.Infrastructure.Data;
 
 /// <summary>A point returned by a Qdrant similarity search.</summary>

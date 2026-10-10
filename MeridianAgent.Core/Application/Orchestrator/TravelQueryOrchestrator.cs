@@ -1,10 +1,3 @@
-using MeridianAgent.Application.Abstractions;
-using MeridianAgent.Application.DTOs;
-using MeridianAgent.Application.State;
-using MeridianAgent.Domain.AgentContracts;
-using MeridianAgent.Domain.Exceptions;
-using Microsoft.Extensions.Logging;
-
 namespace MeridianAgent.Application.Orchestrator;
 
 /// <summary>
@@ -88,8 +81,36 @@ public sealed class TravelQueryOrchestrator
         }
         catch (NoVenuesFoundException ex)
         {
-            noVenues = ex;
-            Blackboard.PublishItinerary(ProposedItinerary.Empty);
+            _logger.LogInformation("Strict search found nothing ({Reason}); retrying with soft constraints relaxed", ex.Reason);
+
+            ProposedItinerary? relaxedPlan = null;
+            try
+            {
+                relaxedPlan = await _searchAgent
+                    .ProposeAsync(RelaxConstraints(constraints), request, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (NoVenuesFoundException relaxedEx)
+            {
+                noVenues = relaxedEx;
+                Blackboard.PublishItinerary(ProposedItinerary.Empty);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception relaxedFailure)
+            {
+                searchFailure = "I couldn't build a plan just now. Give me another try in a moment.";
+                _logger.LogError(relaxedFailure, "Search agent failed during the relaxed retry");
+            }
+
+            if (relaxedPlan is not null)
+            {
+                plan = relaxedPlan;
+                Blackboard.PublishItinerary(plan);
+                _logger.LogInformation("Relaxed search produced {VenueCount} venue(s)", plan.Venues.Count);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -168,6 +189,19 @@ public sealed class TravelQueryOrchestrator
             Blackboard.Itinerary ?? ProposedItinerary.Empty,
             Blackboard.SafeguardReport ?? SafeguardReport.Cleared);
     }
+
+    /// <summary>
+    /// Drops the soft constraints (interests, pacing, energy, timing, budget) that a small model
+    /// tends to over-enforce, keeping only the hard ones: dietary rules and the avoid list.
+    /// </summary>
+    private static ExtractedConstraints RelaxConstraints(ExtractedConstraints constraints) => constraints with
+    {
+        RelevantInterests = null,
+        PacingPreference = PacingPreference.Fast,
+        EnergyLevel = EnergyLevel.Medium,
+        TimeSensitivity = TimeSensitivity.Flexible,
+        BudgetRange = null,
+    };
 
     private async Task<TravelRequest> NarrowRulebookAsync(TravelRequest request, CancellationToken cancellationToken)
     {

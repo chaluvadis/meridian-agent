@@ -1,19 +1,14 @@
-using System.Text.Json;
-using MeridianAgent.Application.Abstractions;
-using MeridianAgent.Application.DTOs;
-using MeridianAgent.Domain;
-using MeridianAgent.Domain.AgentContracts;
-using MeridianAgent.Domain.Entities;
-using MeridianAgent.Domain.Exceptions;
-using Microsoft.Extensions.Logging;
-
 namespace MeridianAgent.Infrastructure.AI.Agents;
 
 /// <summary>
 /// Agent 2: proposes 1-3 venues that fit the extracted constraints AND the current reality
 /// (weather, local time, energy). Model: qwen2.5:3b.
 /// </summary>
-public sealed class SearchAgent : AgentBase, ISearchAgent
+public sealed class SearchAgent(
+    ILlmClient client,
+    ILogger<SearchAgent> logger,
+    string? model = null,
+    string? sanitizerModel = null) : AgentBase(client, logger, model ?? DefaultModel), ISearchAgent
 {
     public const string DefaultModel = "qwen2.5:3b";
 
@@ -45,10 +40,10 @@ public sealed class SearchAgent : AgentBase, ISearchAgent
            - If local_time is between 23:00 and 06:00 → only suggest venues open at that hour.
            - If energy_level = "low" → prioritize venues within 10 minutes travel, minimal walking.
         4. PERSONALIZATION CHECK:
-           - Every suggestion MUST satisfy ALL relevant_dietary constraints.
-           - Every suggestion MUST align with relevant_interests.
-           - Every suggestion MUST NOT appear in avoid_list.
-        5. If NO venue satisfies all constraints, output an empty array with a reason. Never compromise on hard constraints (dietary, avoid_list).
+           - Every suggestion MUST satisfy ALL relevant_dietary constraints (hard requirement).
+           - Every suggestion MUST NOT appear in avoid_list (hard requirement).
+           - PREFER venues that match relevant_interests, but treat interests as preferences, not filters: never discard an otherwise perfect venue just because one interest is unmatched.
+        5. If NO venue satisfies the hard constraints (dietary, avoid_list), output an empty array with a reason. Never compromise on hard constraints (dietary, avoid_list).
 
         OUTPUT FORMAT (exact):
         [
@@ -70,19 +65,9 @@ public sealed class SearchAgent : AgentBase, ISearchAgent
         }
         """;
 
-    public SearchAgent(
-        ILlmClient client,
-        ILogger<SearchAgent> logger,
-        string? model = null,
-        string? sanitizerModel = null)
-        : base(client, logger, model ?? DefaultModel)
-    {
-        SanitizerModel = sanitizerModel ?? DefaultModel;
-    }
-
     public override string AgentName => "SearchAgent";
 
-    public override string SanitizerModel { get; }
+    public override string SanitizerModel { get; } = sanitizerModel ?? DefaultModel;
 
     public Task<ProposedItinerary> ProposeAsync(
         ExtractedConstraints constraints,

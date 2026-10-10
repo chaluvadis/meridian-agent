@@ -1,6 +1,6 @@
 @page "/"
 @page "/chat"
-@using MeridianAgent.Web.Components.State
+@rendermode InteractiveServer
 @inject NavigationManager Navigation
 @inject TravelQueryOrchestrator Orchestrator
 @inject IUserProfileStore ProfileStore
@@ -68,7 +68,7 @@
     {
         "I've been walking all day - somewhere calm for dinner?",
         "We're exhausted, anywhere good nearby?",
-        "Want to see a temple before they close?",
+        "Want to see the old souks before they close?",
     };
 
     private string _query = string.Empty;

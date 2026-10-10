@@ -1,7 +1,7 @@
 {
   "id": "default",
   "display_name": "Aria",
-  "destination": "Kyoto, Japan",
+  "destination": "Dubai, UAE",
   "traveler_profile": "first_time",
   "group_composition": "couple",
   "dietary_rules": [
@@ -9,16 +9,16 @@
     "no shellfish"
   ],
   "interests": [
-    "temples",
-    "quiet cafés",
-    "traditional crafts"
+    "old town souks",
+    "rooftop cafés",
+    "art galleries"
   ],
   "avoid_list": [
-    "crowded nightclubs",
+    "crowded mega malls",
     "long queues"
   ],
   "pacing": "moderate",
   "budget": "medium",
-  "attire_note": "light scarf in bag for temple visits",
-  "home_base": "Kyoto Station"
+  "attire_note": "light scarf in bag for mosques and old town",
+  "home_base": "Downtown Dubai"
 }

@@ -1,10 +1,3 @@
-using MeridianAgent.Domain;
-using MeridianAgent.Domain.Entities;
-using MeridianAgent.Infrastructure.Data;
-using MeridianAgent.Infrastructure.External;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
-
 namespace MeridianAgent.Tests;
 
 public class FileStoreTests
@@ -32,7 +25,7 @@ public class FileStoreTests
     private static StorageOptions Storage(string directory) => new() { DataDirectory = directory };
 
     [Fact]
-    public async Task RulebookStore_LoadsSampleKyotoRulebook()
+    public async Task RulebookStore_LoadsSampleDubaiRulebook()
     {
         var store = new JsonFileRulebookStore(
             Options.Create(Storage(RepoSamplesDirectory)),
@@ -41,7 +34,7 @@ public class FileStoreTests
         var rulebooks = await store.ListAsync();
 
         var kyoto = Assert.Single(rulebooks);
-        Assert.Equal("Kyoto, Japan", kyoto.Destination);
+        Assert.Equal("Dubai, UAE", kyoto.Destination);
         Assert.Equal(5, kyoto.Rules.Count);
         Assert.Contains(kyoto.Rules, rule => rule.Category == RuleCategory.Photography);
     }
@@ -53,7 +46,7 @@ public class FileStoreTests
             Options.Create(Storage(RepoSamplesDirectory)),
             NullLogger<JsonFileRulebookStore>.Instance);
 
-        var rulebook = await store.GetAsync("Kyoto, Japan");
+        var rulebook = await store.GetAsync("Dubai, UAE");
 
         Assert.NotNull(rulebook);
         Assert.NotEmpty(rulebook!.Rules);
@@ -70,7 +63,7 @@ public class FileStoreTests
 
         Assert.NotNull(profile);
         Assert.Equal("Aria", profile!.DisplayName);
-        Assert.Equal("Kyoto, Japan", profile.Destination);
+        Assert.Equal("Dubai, UAE", profile.Destination);
         Assert.Equal(TravelerProfile.FirstTime, profile.TravelerProfile);
         Assert.Contains("vegetarian", profile.DietaryRules);
     }
@@ -90,7 +83,7 @@ public class FileStoreTests
 
         Assert.NotNull(reloaded);
         Assert.Equal("Aria", reloaded!.DisplayName);
-        Assert.Contains("temples", reloaded.Interests);
+        Assert.Contains("old town souks", reloaded.Interests);
 
         Directory.Delete(directory, recursive: true);
     }
@@ -102,10 +95,10 @@ public class FileStoreTests
             Options.Create(Storage(RepoSamplesDirectory)),
             NullLogger<JsonFileNearbyVenueStore>.Instance);
 
-        var venues = await store.GetAsync("Kyoto, Japan");
+        var venues = await store.GetAsync("Dubai, UAE");
 
         Assert.NotEmpty(venues);
-        Assert.Contains(venues, venue => venue.Name == "Ippodo Tea Room");
+        Assert.Contains(venues, venue => venue.Name == "Karak House");
     }
 
     [Fact]
@@ -125,11 +118,11 @@ public class FileStoreTests
             Options.Create(Storage(RepoSamplesDirectory)),
             NullLogger<LiveTravelContextProvider>.Instance);
 
-        var context = await provider.GetCurrentAsync("Kyoto, Japan");
+        var context = await provider.GetCurrentAsync("Dubai, UAE");
 
-        Assert.Equal("Kyoto, Japan", context.Location);
-        Assert.Equal("21:40", context.LocalTime);
-        Assert.True(context.IsRaining);
+        Assert.Equal("Dubai, UAE", context.Location);
+        Assert.Equal("20:45", context.LocalTime);
+        Assert.False(context.IsRaining);
     }
 }
 

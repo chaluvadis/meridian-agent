@@ -1,33 +1,19 @@
-using MeridianAgent.Application.Abstractions;
-using MeridianAgent.Domain.Entities;
-using MeridianAgent.Infrastructure.AI;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-
 namespace MeridianAgent.Infrastructure.Data;
 
 /// <summary>
 /// Narrows a rulebook to the rules most relevant to the user's query using embeddings and Qdrant
 /// vector search. Degrades to the full rulebook on any failure so the safeguard stage never breaks.
 /// </summary>
-public sealed class VectorRulebookNarrower : IRulebookNarrower
+public sealed class VectorRulebookNarrower(
+    ILlmClient llmClient,
+    QdrantClient qdrant,
+    IOptions<OllamaOptions> ollamaOptions,
+    ILogger<VectorRulebookNarrower> logger) : IRulebookNarrower
 {
-    private readonly ILlmClient _llmClient;
-    private readonly QdrantClient _qdrant;
-    private readonly OllamaOptions _ollamaOptions;
-    private readonly ILogger<VectorRulebookNarrower> _logger;
-
-    public VectorRulebookNarrower(
-        ILlmClient llmClient,
-        QdrantClient qdrant,
-        IOptions<OllamaOptions> ollamaOptions,
-        ILogger<VectorRulebookNarrower> logger)
-    {
-        _llmClient = llmClient;
-        _qdrant = qdrant;
-        _ollamaOptions = ollamaOptions.Value;
-        _logger = logger;
-    }
+    private readonly ILlmClient _llmClient = llmClient;
+    private readonly QdrantClient _qdrant = qdrant;
+    private readonly OllamaOptions _ollamaOptions = ollamaOptions.Value;
+    private readonly ILogger<VectorRulebookNarrower> _logger = logger;
 
     /// <summary>Embeds and indexes every rule of a destination so it can be found by similarity.</summary>
     public async Task EnsureIndexedAsync(DestinationRulebook rulebook, CancellationToken cancellationToken = default)

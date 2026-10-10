@@ -1,16 +1,13 @@
-using System.Text;
-using System.Text.Json;
-using MeridianAgent.Application.Abstractions;
-using MeridianAgent.Application.DTOs;
-using Microsoft.Extensions.Logging;
-
 namespace MeridianAgent.Infrastructure.AI.Agents;
 
 /// <summary>
 /// Agent 4: the only voice the user hears. Weaves the plan and any safeguard warnings into a warm,
 /// concise concierge response. Model: llama3.1:8b. Output streams token-by-token to the Blazor UI.
 /// </summary>
-public sealed class SynthesizerAgent : AgentBase, ISynthesizerAgent
+public sealed class SynthesizerAgent(
+    ILlmClient client,
+    ILogger<SynthesizerAgent> logger,
+    string? model = null) : AgentBase(client, logger, model ?? DefaultModel), ISynthesizerAgent
 {
     public const string DefaultModel = "llama3.1:8b";
 
@@ -70,18 +67,9 @@ public sealed class SynthesizerAgent : AgentBase, ISynthesizerAgent
         OUTPUT: Plain text only. No JSON, no markdown, no code blocks.
         """;
 
-    public SynthesizerAgent(
-        ILlmClient client,
-        ILogger<SynthesizerAgent> logger,
-        string? model = null)
-        : base(client, logger, model ?? DefaultModel)
-    {
-        SanitizerModel = DefaultModel;
-    }
-
     public override string AgentName => "SynthesizerAgent";
 
-    public override string SanitizerModel { get; }
+    public override string SanitizerModel { get; } = DefaultModel;
 
     public IAsyncEnumerable<string> StreamAsync(
         SynthesisRequest request,

@@ -1,6 +1,3 @@
-using System.Globalization;
-using Microsoft.Extensions.Options;
-
 namespace MeridianAgent.Infrastructure.External;
 
 /// <summary>OpenWeatherMap current weather (env: Weather__ApiKey).</summary>

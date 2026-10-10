@@ -1,9 +1,3 @@
-using System.Text.Json;
-using MeridianAgent.Application.Abstractions;
-using MeridianAgent.Domain.Entities;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-
 namespace MeridianAgent.Infrastructure.Data;
 
 /// <summary>Loads nearby venues from {DataDirectory}/nearby_{location-slug}.json, falling back to nearby_venues.json.</summary>

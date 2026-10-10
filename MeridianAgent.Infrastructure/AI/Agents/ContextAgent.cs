@@ -1,17 +1,14 @@
-using System.Text.Json;
-using MeridianAgent.Application.Abstractions;
-using MeridianAgent.Application.DTOs;
-using MeridianAgent.Domain;
-using MeridianAgent.Domain.AgentContracts;
-using Microsoft.Extensions.Logging;
-
 namespace MeridianAgent.Infrastructure.AI.Agents;
 
 /// <summary>
 /// Agent 1: extracts ONLY the constraints that matter for the current query from the user's profile.
 /// Model: qwen2.5:1.5b - deliberately tiny, because this stage is pure data reduction.
 /// </summary>
-public sealed class ContextAgent : AgentBase, IContextAgent
+public sealed class ContextAgent(
+    ILlmClient client,
+    ILogger<ContextAgent> logger,
+    string? model = null,
+    string? sanitizerModel = null) : AgentBase(client, logger, model ?? DefaultModel), IContextAgent
 {
     public const string DefaultModel = "qwen2.5:1.5b";
 
@@ -54,19 +51,9 @@ public sealed class ContextAgent : AgentBase, IContextAgent
         }
         """;
 
-    public ContextAgent(
-        ILlmClient client,
-        ILogger<ContextAgent> logger,
-        string? model = null,
-        string? sanitizerModel = null)
-        : base(client, logger, model ?? DefaultModel)
-    {
-        SanitizerModel = sanitizerModel ?? DefaultModel;
-    }
-
     public override string AgentName => "ContextAgent";
 
-    public override string SanitizerModel { get; }
+    public override string SanitizerModel { get; } = sanitizerModel ?? DefaultModel;
 
     public Task<ExtractedConstraints> ExtractAsync(
         TravelRequest request,
@@ -83,7 +70,16 @@ public sealed class ContextAgent : AgentBase, IContextAgent
                 ["WeatherSummary"] = request.Context?.WeatherSummary ?? "unknown",
             });
 
-        return RunJsonAsync(prompt, ParseConstraints, cancellationToken);
+        return RunJsonAsync(prompt, element =>
+        {
+            var outcome = ParseConstraints(element);
+            if (outcome.IsSuccess)
+            {
+                Logger.LogDebug("Context agent extracted: {Constraints}", JsonElementReader.Serialize(outcome.Value));
+            }
+
+            return outcome;
+        }, cancellationToken);
     }
 
     private static ParseOutcome<ExtractedConstraints> ParseConstraints(JsonElement root)

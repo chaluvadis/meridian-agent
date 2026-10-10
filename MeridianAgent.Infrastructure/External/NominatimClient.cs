@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Options;
-
 namespace MeridianAgent.Infrastructure.External;
 
 public sealed record GeoPoint(double Latitude, double Longitude);

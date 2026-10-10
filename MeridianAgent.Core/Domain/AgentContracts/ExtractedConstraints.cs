@@ -1,6 +1,3 @@
-using System.Text.Json.Serialization;
-using MeridianAgent.Domain;
-
 namespace MeridianAgent.Domain.AgentContracts;
 
 /// <summary>

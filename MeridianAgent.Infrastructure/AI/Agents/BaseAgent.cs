@@ -1,33 +1,21 @@
-using System.Text.Json;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
-
 namespace MeridianAgent.Infrastructure.AI.Agents;
 
 /// <summary>
 /// Shared plumbing for the four agents: prompt execution against a model, JSON extraction with the
 /// sanitizer fallback, and one validation-feedback retry before failing.
 /// </summary>
-public abstract class AgentBase
+public abstract class AgentBase(ILlmClient client, ILogger logger, string defaultModel, int attempts = AgentBase.DefaultAttempts)
 {
     private const int DefaultAttempts = 2;
 
-    protected AgentBase(ILlmClient client, ILogger logger, string defaultModel, int attempts = DefaultAttempts)
-    {
-        Client = client;
-        Logger = logger;
-        Model = defaultModel;
-        Attempts = Math.Max(1, attempts);
-    }
+    protected ILlmClient Client { get; } = client;
 
-    protected ILlmClient Client { get; }
-
-    protected ILogger Logger { get; }
+    protected ILogger Logger { get; } = logger;
 
     /// <summary>The Ollama model tag this agent runs on.</summary>
-    public string Model { get; }
+    public string Model { get; } = defaultModel;
 
-    protected int Attempts { get; }
+    protected int Attempts { get; } = Math.Max(1, attempts);
 
     public abstract string AgentName { get; }
 
@@ -53,6 +41,8 @@ public abstract class AgentBase
             var raw = await Client
                 .CompleteAsync(new LlmRequest(Model, attemptPrompt, JsonMode: true), cancellationToken)
                 .ConfigureAwait(false);
+
+            Logger.LogDebug("{Agent} raw response (model {Model}): {Raw}", AgentName, Model, raw);
 
             JsonElement element;
             try

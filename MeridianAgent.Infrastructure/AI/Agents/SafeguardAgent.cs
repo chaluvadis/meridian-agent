@@ -1,17 +1,14 @@
-using System.Text.Json;
-using MeridianAgent.Application.Abstractions;
-using MeridianAgent.Application.DTOs;
-using MeridianAgent.Domain;
-using MeridianAgent.Domain.AgentContracts;
-using Microsoft.Extensions.Logging;
-
 namespace MeridianAgent.Infrastructure.AI.Agents;
 
 /// <summary>
 /// Agent 3: the quiet guardian. Checks the proposed plan against the destination rulebook and
 /// flags risks with gentle fixes. Model: qwen2.5:3b.
 /// </summary>
-public sealed class SafeguardAgent : AgentBase, ISafeguardAgent
+public sealed class SafeguardAgent(
+    ILlmClient client,
+    ILogger<SafeguardAgent> logger,
+    string? model = null,
+    string? sanitizerModel = null) : AgentBase(client, logger, model ?? DefaultModel), ISafeguardAgent
 {
     public const string DefaultModel = "qwen2.5:3b";
 
@@ -62,19 +59,9 @@ public sealed class SafeguardAgent : AgentBase, ISafeguardAgent
         }
         """;
 
-    public SafeguardAgent(
-        ILlmClient client,
-        ILogger<SafeguardAgent> logger,
-        string? model = null,
-        string? sanitizerModel = null)
-        : base(client, logger, model ?? DefaultModel)
-    {
-        SanitizerModel = sanitizerModel ?? DefaultModel;
-    }
-
     public override string AgentName => "SafeguardAgent";
 
-    public override string SanitizerModel { get; }
+    public override string SanitizerModel { get; } = sanitizerModel ?? DefaultModel;
 
     public Task<SafeguardReport> CheckAsync(
         ProposedItinerary plan,

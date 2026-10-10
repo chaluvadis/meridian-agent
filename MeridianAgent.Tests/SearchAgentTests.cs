@@ -1,9 +1,3 @@
-using MeridianAgent.Domain;
-using MeridianAgent.Domain.Exceptions;
-using MeridianAgent.Infrastructure.AI;
-using MeridianAgent.Infrastructure.AI.Agents;
-using Microsoft.Extensions.Logging.Abstractions;
-
 namespace MeridianAgent.Tests;
 
 public class SearchAgentTests
@@ -17,7 +11,7 @@ public class SearchAgentTests
         var agent = CreateAgent("""
             [
               {
-                "venue_name": "Ippodo Tea Room",
+                "venue_name": "Karak House",
                 "venue_type": "indoor",
                 "category": "cafe",
                 "travel_time_minutes": 6,
@@ -31,7 +25,7 @@ public class SearchAgentTests
         var itinerary = await agent.ProposeAsync(TestData.Constraints, TestData.Request());
 
         var venue = Assert.Single(itinerary.Venues);
-        Assert.Equal("Ippodo Tea Room", venue.Name);
+        Assert.Equal("Karak House", venue.Name);
         Assert.Equal(VenueType.Indoor, venue.VenueType);
         Assert.Equal(VenueCategory.Cafe, venue.Category);
         Assert.Equal(6, venue.TravelTimeMinutes);
@@ -41,16 +35,16 @@ public class SearchAgentTests
     public async Task ProposeAsync_PromptCarriesReality()
     {
         var client = new ScriptedLlmClient(
-            """[{"venue_name": "Ippodo Tea Room", "venue_type": "indoor", "category": "cafe"}]""");
+            """[{"venue_name": "Karak House", "venue_type": "indoor", "category": "cafe"}]""");
         var agent = new SearchAgent(client, NullLogger<SearchAgent>.Instance);
 
         await agent.ProposeAsync(TestData.Constraints, TestData.Request());
 
         var prompt = client.Calls[0].Prompt;
-        Assert.Contains("\"is_raining\": true", prompt);
+        Assert.Contains("\"is_raining\": false", prompt);
         Assert.Contains("31", prompt);
-        Assert.Contains("21:40", prompt);
-        Assert.Contains("Ippodo Tea Room", prompt);
+        Assert.Contains("20:45", prompt);
+        Assert.Contains("Karak House", prompt);
         Assert.Equal("qwen2.5:3b", client.Calls[0].Model);
     }
 

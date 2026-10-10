@@ -1,6 +1,3 @@
-using System.Text.Json;
-using MeridianAgent.Infrastructure.AI;
-
 namespace MeridianAgent.Tests;
 
 public class JsonExtractorTests
@@ -21,7 +18,7 @@ public class JsonExtractorTests
         const string fenced = """
             Sure, here is the plan:
             ```json
-            [{"venue_name": "Ippodo Tea Room"}]
+            [{"venue_name": "Karak House"}]
             ```
             Hope that helps!
             """;
@@ -152,10 +149,10 @@ public class PromptRendererTests
             {
                 ["Name"] = "Aria",
                 ["Weather"] = "raining",
-                ["City"] = "Kyoto",
+                ["City"] = "Dubai",
             });
 
-        Assert.Equal("Hello Aria, it is raining in Kyoto.", rendered);
+        Assert.Equal("Hello Aria, it is raining in Dubai.", rendered);
     }
 
     [Fact]
@@ -170,8 +167,8 @@ public class PromptRendererTests
     {
         var template = """{"location": "$Location", "meta": {"tz": 9}}""";
 
-        var rendered = PromptRenderer.Render(template, new Dictionary<string, string> { ["Location"] = "Kyoto" });
+        var rendered = PromptRenderer.Render(template, new Dictionary<string, string> { ["Location"] = "Dubai" });
 
-        Assert.Equal("""{"location": "Kyoto", "meta": {"tz": 9}}""", rendered);
+        Assert.Equal("""{"location": "Dubai", "meta": {"tz": 9}}""", rendered);
     }
 }

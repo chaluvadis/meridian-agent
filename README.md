@@ -108,6 +108,20 @@ The `ollama-models` service pulls the four models on first run (watch it with
 `docker compose logs -f ollama-models`); afterwards it stays stopped while `ollama` keeps the
 models in the `ollama-models` volume.
 
+### One-shot clean build and deploy
+
+`scripts/deploy-local.sh` tears everything down, rebuilds the image from scratch, redeploys, and
+waits for `/health` before reporting status:
+
+```bash
+./scripts/deploy-local.sh                    # full clean (deletes volumes, models re-pull)
+./scripts/deploy-local.sh --keep-models      # keep ollama/qdrant volumes, much faster
+./scripts/deploy-local.sh --no-cache -l      # no layer cache + follow app logs
+./scripts/deploy-local.sh --dry-run          # print every command, change nothing
+```
+
+Other flags: `--no-build`, `-y` (skip the confirmation prompt), `--help`.
+
 ## Tests
 
 ```bash

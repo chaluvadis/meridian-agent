@@ -1,5 +1,3 @@
-using System.Text.Json.Serialization;
-
 namespace MeridianAgent.Domain.Entities;
 
 /// <summary>A venue proposed by the Search Agent and surfaced to the user by the Synthesizer.</summary>

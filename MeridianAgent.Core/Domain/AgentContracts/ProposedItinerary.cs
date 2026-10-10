@@ -1,5 +1,3 @@
-using MeridianAgent.Domain.Entities;
-
 namespace MeridianAgent.Domain.AgentContracts;
 
 /// <summary>Output of the Search Agent: 1-3 proposed venues.</summary>

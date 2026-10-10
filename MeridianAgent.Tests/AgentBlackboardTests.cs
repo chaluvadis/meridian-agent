@@ -1,7 +1,3 @@
-using MeridianAgent.Application.State;
-using MeridianAgent.Domain;
-using MeridianAgent.Domain.AgentContracts;
-
 namespace MeridianAgent.Tests;
 
 public class AgentBlackboardTests
@@ -36,14 +32,14 @@ public class AgentBlackboardTests
 
         blackboard.PublishQuery("anything open this late?");
         blackboard.PublishConstraints(TestData.Constraints);
-        blackboard.PublishResponse("Top pick: Ippodo Tea Room.");
+        blackboard.PublishResponse("Top pick: Karak House.");
 
         var history = blackboard.History;
         Assert.Equal(3, history.Count);
         Assert.Equal(AgentBlackboard.Keys.Query, history[0].Key);
         Assert.Equal(AgentBlackboard.Keys.Constraints, history[1].Key);
         Assert.Equal(AgentBlackboard.Keys.Response, history[2].Key);
-        Assert.Equal("Top pick: Ippodo Tea Room.", blackboard.Response);
+        Assert.Equal("Top pick: Karak House.", blackboard.Response);
     }
 
     [Fact]

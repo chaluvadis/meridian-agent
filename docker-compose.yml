@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: meridian-web
     ports:
-      - "8080:8080"
+      - "${WEB_PORT:-8080}:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
@@ -37,8 +37,15 @@ services:
   ollama:
     image: ollama/ollama:latest
     container_name: meridian-ollama
-    ports:
-      - "11434:11434"
+    # Reached by meridian-web at http://ollama:11434 over the compose network only.
+    # Not bound to the host: a locally installed Ollama almost always owns 11434 already
+    # ("Bind for 0.0.0.0:11434 failed: port is already allocated"). To also reach this
+    # container's Ollama from the host (e.g. the `ollama` CLI), uncomment the mapping
+    # below and pick a free host port such as 11435.
+    expose:
+      - "11434"
+    # ports:
+    #   - "11435:11434"
     volumes:
       - ollama-models:/root/.ollama
     restart: unless-stopped
@@ -47,8 +54,8 @@ services:
     image: qdrant/qdrant:latest
     container_name: meridian-qdrant
     ports:
-      - "6333:6333"
-      - "6334:6334"
+      - "${QDRANT_HTTP_PORT:-6333}:6333"
+      - "${QDRANT_GRPC_PORT:-6334}:6334"
     volumes:
       - qdrant-data:/qdrant/storage
     restart: unless-stopped

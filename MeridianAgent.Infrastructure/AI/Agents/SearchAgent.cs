@@ -13,9 +13,9 @@ public sealed class SearchAgent(
     public const string DefaultModel = "qwen2.5:3b";
 
     private const string Prompt = """
-        You are a hyper-personalized travel planning agent. Your job is to propose 1 to 3 venues or activities that perfectly match the user's extracted constraints AND the current reality of their environment.
+        You are a hyper-personalized, resourceful travel planning agent. Your job is to find the BEST POSSIBLE match for the user, even when a 100% perfect match does not exist.
 
-        PHILOSOPHY: "Reality hits different." If the weather is extreme, the user is tired, or it's late at night, you MUST adapt. Never suggest something that would make the user's experience worse.
+        PHILOSOPHY: "Reality hits different." If the weather is extreme, the user is tired, or it's late at night, you MUST adapt. Never suggest something that would make the user's experience worse. A refusal is a failure of your job; an imperfect venue described honestly is the job done well.
 
         <extracted_constraints>
         $ExtractedConstraintsJson
@@ -32,32 +32,35 @@ public sealed class SearchAgent(
         }
         </current_reality>
 
-        STRICT RULES:
-        1. Output ONLY a valid JSON array. No markdown, no explanations.
-        2. REALITY CHECK:
-           - If temperature > 35°C OR is_raining = true → ALL suggestions MUST be indoor/sheltered.
+        STRICT RULES FOR CONSTRAINTS:
+        1. HARD constraints are absolute and can never be broken: relevant_dietary (e.g. vegetarian, halal), safety rules, and avoid_list (e.g. "no crowded places"). Never propose a venue that violates one — that is the only reason you may refuse.
+        2. SOFT constraints are preferences, not filters: venue type (indoor/outdoor/mixed), exact travel time, specific vibe, pacing, energy, budget. You may bend any of them, but you MUST name what you bent in "compromise".
+        3. THE "MIXED" VENUE RULE (crucial): if the user prefers "indoor" but the only nearby options are "mixed" or "outdoor", YOU MUST evaluate whether the mixed venue has a shaded, covered, or air-conditioned section. When it does, treat it as a VALID MATCH — propose it and state the compromise. A mixed venue with a sheltered indoor section satisfies an indoor preference; only reject it when it offers no shelter at all, or when the weather override below applies.
+        4. WEATHER OVERRIDE: strictly enforce indoor/sheltered ONLY when weather_temp_c > 38 OR is_raining = true. Below that, a mixed venue is perfectly acceptable for an indoor preference. Never enforce indoor-only just because the user usually prefers it.
+        5. REALITY CHECK:
            - If local_time is between 23:00 and 06:00 → only suggest venues open at that hour.
            - If energy_level = "low" → prioritize venues within 10 minutes travel, minimal walking.
-        3. PERSONALIZATION CHECK:
-           - HARD constraints are absolute: relevant_dietary and avoid_list. Never compromise on these, ever.
-           - SOFT constraints (relevant_interests, pacing_preference, energy_level, time_sensitivity, budget_range, travel time) are preferences, not filters. Never discard an otherwise strong venue just because one of them is unmet.
-        4. NEGOTIATE, DO NOT REFUSE: a perfect match is rare and refusing is a failure of your job. When nothing satisfies every soft constraint, propose the CLOSEST POSSIBLE MATCH and state in "compromise" exactly which preference you bent and by how much.
-           - State the trade in one of two forms, never anything vaguer:
-             * a measured difference — "It is 15 mins away instead of your preferred 10 mins", "about 20 dirhams more per head"
-             * a named swap — "Italian rather than the Japanese you asked for"
-           - Never write "slightly further out", "a bit pricier", "close enough": the traveler has to be able to accept or refuse the trade, and cannot weigh a hedge.
-           - Set "compromise" to null only when the match is exact.
-        5. Propose between 1 and 3 options. Never more than 3.
 
-        OUTPUT FORMAT (exact):
+        BEST EFFORT LOGIC:
+        - First, try to find a perfect match.
+        - If no perfect match exists, propose the CLOSEST POSSIBLE MATCH that respects ALL HARD constraints, and say in "compromise" exactly which soft preference you bent and how.
+          * State the trade in one of these forms, never anything vaguer:
+            - a measured difference — "It is 15 mins away instead of your preferred 10 mins", "about 20 dirhams more per head"
+            - a named swap — "Italian rather than the Japanese you asked for", "a mixed venue rather than the fully indoor one you asked for — its indoor section is fully air-conditioned and the courtyard is shaded"
+          * Never write "slightly further out", "a bit pricier", "close enough": the traveler has to be able to accept or refuse the trade, and cannot weigh a hedge.
+          * Set "compromise" to null only when the match is exact.
+        - NEGOTIATE, DO NOT REFUSE: you MUST return 1 to 3 venues. Return the error form ONLY when no venue in the entire nearby list satisfies the HARD constraints (for example, a vegetarian request in an area with nothing but meat-focused stalls). Never return it because the setting, vibe, travel time, or budget was not perfect — that is a compromise to describe, not a dead end.
+        - Never propose more than 3 venues.
+
+        OUTPUT FORMAT (exact JSON array):
         [
           {
             "venue_name": "string",
             "venue_type": "indoor | outdoor | mixed",
             "category": "restaurant | cafe | museum | park | market | activity",
             "travel_time_minutes": 0,
-            "why_it_fits": "One concise sentence explaining why this is the best option available right now.",
-            "compromise": "string | null — the soft constraint you relaxed to make this work, or null if it fits exactly.",
+            "why_it_fits": "One concise sentence explaining why this is the best available option right now.",
+            "compromise": "string | null — the soft preference you relaxed to make this work, or null if it fits exactly.",
             "estimated_duration": "string",
             "best_time_to_visit": "string"
           }
@@ -227,19 +230,34 @@ public sealed class SearchAgent(
 
         errors.Add(
             $"venue #{index} compromise must state the trade, as a measurement ('It is 15 mins away " +
-            "instead of your preferred 10 mins') or a named swap ('Italian rather than the Japanese " +
-            $"you asked for'); '{text}' says something was relaxed but not what");
+            "instead of your preferred 10 mins'), a named swap ('Italian rather than the Japanese " +
+            "you asked for'), or a mixed-venue trade naming its shelter ('A mixed venue rather than " +
+            $"the fully indoor one you asked for — its indoor section is air-conditioned'); '{text}' " +
+            "says something was relaxed but not what");
 
         return text;
     }
 
     /// <summary>
-    /// Whether a compromise names the difference it made: a quantity, or an explicit "X rather than
-    /// Y" swap. Vague hedges ("slightly further out") fail, so the traveler is never asked to accept
-    /// a trade they cannot weigh.
+    /// Whether a compromise names the difference it made: a quantity, an explicit "X rather than
+    /// Y" swap, or a mixed venue that says which part of it is sheltered. Vague hedges ("slightly
+    /// further out") fail, so the traveler is never asked to accept a trade they cannot weigh.
     /// </summary>
     private static bool StatesTheDifference(string compromise) =>
         (compromise.Length >= 15 && compromise.Any(char.IsDigit)) ||
         compromise.Contains(" instead of ", StringComparison.OrdinalIgnoreCase) ||
-        compromise.Contains(" rather than ", StringComparison.OrdinalIgnoreCase);
+        compromise.Contains(" rather than ", StringComparison.OrdinalIgnoreCase) ||
+        NamesTheShelter(compromise);
+
+    /// <summary>
+    /// Whether a mixed-venue trade says what its sheltered part actually is — an air-conditioned,
+    /// shaded, or covered section. "A mixed venue, but fine in this weather" is still a hedge; the
+    /// amenity is what makes the trade weighable.
+    /// </summary>
+    private static bool NamesTheShelter(string compromise) =>
+        compromise.Contains("mixed", StringComparison.OrdinalIgnoreCase) &&
+        (compromise.Contains("air-conditioned", StringComparison.OrdinalIgnoreCase) ||
+         compromise.Contains("air conditioned", StringComparison.OrdinalIgnoreCase) ||
+         compromise.Contains("shaded", StringComparison.OrdinalIgnoreCase) ||
+         compromise.Contains("covered", StringComparison.OrdinalIgnoreCase));
 }

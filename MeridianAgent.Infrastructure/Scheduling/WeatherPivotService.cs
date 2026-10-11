@@ -200,7 +200,9 @@ public sealed class WeatherPivotService
         var nearby = await nearbyStore.GetAsync(location, at, cancellationToken).ConfigureAwait(false);
 
         var shelter = nearby
-            .Where(venue => venue.IsIndoor)
+            // A mixed venue with an air-conditioned or shaded section is shelter too; only a
+            // genuinely open venue is excluded.
+            .Where(venue => venue.OffersShelter)
             .Where(venue => !outdoor.Any(saved =>
                 string.Equals(saved.VenueName, venue.Name, StringComparison.OrdinalIgnoreCase)))
             .OrderBy(venue => venue.DistanceMinutes)

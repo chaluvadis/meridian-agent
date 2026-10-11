@@ -54,8 +54,20 @@ public static class TestData
             Category = "restaurant",
             IsOpenNow = false,
             IsIndoor = false,
+            Setting = "outdoor",
             DietaryOptions = new[] { "vegetarian" },
             DistanceMinutes = 9,
+        },
+        new NearbyVenue
+        {
+            Name = "Arabian Tea House",
+            Category = "restaurant",
+            IsOpenNow = true,
+            IsIndoor = false,
+            Setting = "mixed",
+            ShelterNote = "shaded courtyard with a fully air-conditioned indoor seating section",
+            DietaryOptions = new[] { "vegetarian" },
+            DistanceMinutes = 11,
         },
     };
 

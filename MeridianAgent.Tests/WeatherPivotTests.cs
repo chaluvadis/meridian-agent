@@ -120,6 +120,45 @@ public class WeatherPivotTests
     }
 
     [Fact]
+    public async Task AMixedVenueWithAShelteredSectionCountsAsShelter()
+    {
+        // Same rule the Search Agent negotiates by: a mixed venue with an air-conditioned or
+        // shaded section is a dry option, not an outdoor one.
+        var recording = new FakeSynthesizerAgent();
+        var history = new StubChatHistoryService
+        {
+            FavoritesForToday = new[] { OutdoorSave("Al Fahidi Heritage Walk", "Activity · Outdoor · 10 min away") },
+        };
+        var venues = new StubNearbyVenueStore
+        {
+            Venues = new[]
+            {
+                new NearbyVenue { Name = "Al Fahidi Heritage Walk", Category = "Activity", IsIndoor = false, DistanceMinutes = 10 },
+                new NearbyVenue
+                {
+                    Name = "Arabian Tea House",
+                    Category = "Restaurant",
+                    IsIndoor = false,
+                    Setting = "mixed",
+                    ShelterNote = "shaded courtyard with a fully air-conditioned indoor seating section",
+                    DistanceMinutes = 11,
+                },
+            },
+        };
+
+        var pivots = CreatePivots(
+            new RecordingChatNotifier(),
+            new StubTravelContextProvider { Context = Context("Rain", 29, true) },
+            venues,
+            history,
+            recording);
+
+        await pivots.TryPublishPivotAsync(CancellationToken.None);
+
+        Assert.Contains("Arabian Tea House", string.Join(" ", recording.PivotInput!.IndoorOptions));
+    }
+
+    [Fact]
     public async Task TheSameConflictIsNotRaisedTwice()
     {
         var notifier = new RecordingChatNotifier();

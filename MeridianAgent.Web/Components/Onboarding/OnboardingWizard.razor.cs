@@ -117,7 +117,7 @@ namespace MeridianAgent.Web.Components.Onboarding
 
                     try
                     {
-                        Snackbar.Add("Saved ✓", Severity.Success, config => config.VisibleStateDuration = 1400);
+                        Snackbar.Add("Saved ✓", MudBlazor.Severity.Success, config => config.VisibleStateDuration = 1400);
                     }
                     catch (ObjectDisposedException)
                     {
@@ -131,7 +131,7 @@ namespace MeridianAgent.Web.Components.Onboarding
 
                 try
                 {
-                    Snackbar.Add("I couldn't save that — I'll retry on your next change.", Severity.Warning);
+                    Snackbar.Add("I couldn't save that — I'll retry on your next change.", MudBlazor.Severity.Warning);
                 }
                 catch (ObjectDisposedException)
                 {
@@ -204,7 +204,7 @@ namespace MeridianAgent.Web.Components.Onboarding
                 {
                     // Auto-save has been keeping up; write anything still debouncing, then finish.
                     await FlushAutoSaveAsync();
-                    Snackbar.Add("Profile updated — your recommendations already reflect it.", Severity.Success);
+                    Snackbar.Add("Profile updated — your recommendations already reflect it.", MudBlazor.Severity.Success);
                     Navigation.NavigateTo("/");
                     return;
                 }
@@ -226,7 +226,7 @@ namespace MeridianAgent.Web.Components.Onboarding
 
                 Snackbar.Add(
                     $"Welcome aboard, {profile.DisplayName.Split(' ')[0]} — I'm getting to know you now.",
-                    Severity.Success);
+                    MudBlazor.Severity.Success);
 
                 Navigation.NavigateTo("/", replace: true);
             }
@@ -235,7 +235,7 @@ namespace MeridianAgent.Web.Components.Onboarding
                 // Keep the traveler on the review step with their answers intact.
                 Snackbar.Add(
                     "I couldn't save your profile just now — please try saving again.",
-                    Severity.Error);
+                    MudBlazor.Severity.Error);
             }
             finally
             {

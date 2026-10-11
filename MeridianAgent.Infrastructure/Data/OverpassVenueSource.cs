@@ -144,6 +144,9 @@ public sealed class OverpassVenueSource : ILiveVenueSource
                 // OSM tags an indoor venue poorly, so the conservative read is "unknown": the
                 // filter that keeps shelter treats unknown as shelter rather than assuming either.
                 IsIndoor = IsIndoor(element),
+                // The same read as the setting the Search Agent reasons about, so a live venue and
+                // a file-backed one are weighed by the same vocabulary.
+                Setting = IsIndoor(element) ? "indoor" : "outdoor",
                 DistanceMinutes = 0,
             });
         }

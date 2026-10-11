@@ -102,6 +102,23 @@ public class FileStoreTests
     }
 
     [Fact]
+    public async Task NearbyVenueStore_SharedListCarriesAMixedVenueTheAgentCanCompromiseOn()
+    {
+        // The Search Agent is told a mixed venue with shelter satisfies an indoor preference; the
+        // shared list has to actually hold one, or the prompt promises something no data delivers.
+        var store = new JsonFileNearbyVenueStore(
+            Options.Create(Storage(RepoSamplesDirectory)),
+            NullLogger<JsonFileNearbyVenueStore>.Instance);
+
+        var venues = await store.GetAsync("Dubai, UAE");
+
+        var mixed = Assert.Single(venues, venue => venue.IsMixed);
+        Assert.Contains("vegetarian", mixed.DietaryOptions, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("air-conditioned", mixed.ShelterNote!, StringComparison.OrdinalIgnoreCase);
+        Assert.True(mixed.OffersShelter);
+    }
+
+    [Fact]
     public async Task TravelContextProvider_FallsBackToSampleContextWhenServicesUnavailable()
     {
         var nominatim = new NominatimClient(

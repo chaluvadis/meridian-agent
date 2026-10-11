@@ -15,6 +15,23 @@ public sealed record NearbyVenue
     [JsonPropertyName("is_indoor")]
     public bool IsIndoor { get; init; }
 
+    /// <summary>
+    /// How the venue is set: "indoor", "outdoor", or "mixed". A mixed venue has both an open area
+    /// and a sheltered, air-conditioned or shaded one — which is what makes it a valid stand-in for
+    /// a traveler who prefers indoors. Null when the source never described the setting, in which
+    /// case <see cref="IsIndoor"/> is the whole answer.
+    /// </summary>
+    [JsonPropertyName("venue_setting")]
+    public string? Setting { get; init; }
+
+    /// <summary>
+    /// What the sheltered part of a venue actually is — "shaded courtyard plus a fully
+    /// air-conditioned indoor section". Null when there is nothing sheltered to describe, which is
+    /// also why a "mixed" venue without one is not offered as shelter.
+    /// </summary>
+    [JsonPropertyName("shelter_note")]
+    public string? ShelterNote { get; init; }
+
     [JsonPropertyName("dietary_options")]
     public IReadOnlyList<string> DietaryOptions { get; init; } = Array.Empty<string>();
 
@@ -40,4 +57,17 @@ public sealed record NearbyVenue
     /// Kilometres rather than minutes: a straight line does not know about traffic.
     /// </summary>
     public double? DistanceKmFrom(GeoPoint from) => At?.DistanceKmTo(from);
+
+    /// <summary>
+    /// Whether the traveler can sit in shelter here: a flat indoor venue, or a mixed one that says
+    /// it has a shaded, covered, or air-conditioned section. A mixed venue with nothing sheltered
+    /// to name is not shelter — it is an open venue with hopeful branding.
+    /// </summary>
+    [JsonIgnore]
+    public bool OffersShelter =>
+        IsIndoor || (IsMixed && !string.IsNullOrWhiteSpace(ShelterNote));
+
+    /// <summary>Whether this venue has both an open area and a sheltered one.</summary>
+    [JsonIgnore]
+    public bool IsMixed => string.Equals(Setting, "mixed", StringComparison.OrdinalIgnoreCase);
 }

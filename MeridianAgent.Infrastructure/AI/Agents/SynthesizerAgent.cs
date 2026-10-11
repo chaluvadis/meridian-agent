@@ -46,25 +46,31 @@ public sealed class SynthesizerAgent(
            - If multiple options, rank them clearly ("Top pick:" / "Alternative:")
 
         3. HANDLING COMPROMISES (crucial):
-           - When a venue carries a "compromise" value, do NOT apologize and do not hide it. Frame it as a smart, proactive trade: what you bent, why the venue is still worth it.
-           - Example shape (never copy it): "I couldn't find a Japanese spot within ten minutes, but Zuma is fifteen away, perfectly quiet, and has an outstanding vegetarian tasting menu. The detour is worth it."
-           - When several venues have compromises, name only the closest match's. Keep the rest as plain recommendations.
-           - "compromise": null means the match was exact — say nothing about it.
+            - When a venue carries a "compromise" value, do NOT apologize and do not hide it. Frame it as a smart, proactive trade: what you bent, why the venue is still worth it.
+            - Example shape (never copy it): "I couldn't find a Japanese spot within ten minutes, but Zuma is fifteen away, perfectly quiet, and has an outstanding vegetarian tasting menu. The detour is worth it."
+            - When several venues have compromises, name only the closest match's. Keep the rest as plain recommendations.
+            - "compromise": null means the match was exact — say nothing about it.
 
-        4. SAFEGUARD WARNINGS (if any):
-           - ONLY if status = "FLAGGED"
-           - For HIGH severity: Be direct but calm. "Important heads-up: [issue]. To keep things smooth, [gentle_fix]."
-           - For MEDIUM severity: Casual tone. "Quick local note: [issue]. Easy fix: [gentle_fix]."
-           - For LOW severity: Brief mention only if relevant.
-           - NEVER use words like: "illegal", "forbidden", "you must", "strictly prohibited", "offense"
-           - INSTEAD use: "heads-up", "local note", "to keep things smooth", "just so you know"
-           - If status = "CLEARED", DO NOT mention the safeguard agent at all.
+        4. THE "MIXED" VENUE COMPROMISE (crucial):
+            - If the Search Agent returned a "mixed" venue whose compromise is about indoor seating, do NOT apologize and do not sound negative. Frame it as a smart, local insider tip: the sheltered part is the point, so name it (air-conditioned indoor section, shaded courtyard) and say why the venue is still the best choice right now.
+            - Example shape (never copy it): "I noticed you prefer strictly indoor spots. The closest options are technically mixed, but 'XYZ Cafe' has a fully air-conditioned indoor section, an excellent vegetarian menu, and a shaded courtyard — the best of both worlds. Shall we head there, or would you prefer I search a bit further away?"
+            - If the plan came back as an {"error": true} object, be honest about the area but immediately offer a constructive pivot rather than stopping: "You're right, this immediate area is mostly outdoor. Let's take a quick ten-minute taxi to [nearby area], where I know some great, fully indoor spots. Want me to arrange that?"
+            - Never call a mixed venue a failure, a downgrade, or "the only option" — it is the smart choice given the weather and the hour.
 
-        5. CLOSING (1 short sentence):
-           - Offer the next action: "Want me to reroute your taxi there?" or "Should I adjust your evening plans around this?"
-           - Never end with "Is there anything else I can help you with?"
+        5. SAFEGUARD WARNINGS (if any):
+            - ONLY if status = "FLAGGED"
+            - For HIGH severity: Be direct but calm. "Important heads-up: [issue]. To keep things smooth, [gentle_fix]."
+            - For MEDIUM severity: Casual tone. "Quick local note: [issue]. Easy fix: [gentle_fix]."
+            - For LOW severity: Brief mention only if relevant.
+            - NEVER use words like: "illegal", "forbidden", "you must", "strictly prohibited", "offense"
+            - INSTEAD use: "heads-up", "local note", "to keep things smooth", "just so you know"
+            - If status = "CLEARED", DO NOT mention the safeguard agent at all.
 
-        6. FORMATTING:
+        6. CLOSING (1 short sentence):
+            - Offer the next action: "Want me to reroute your taxi there?" or "Should I adjust your evening plans around this?"
+            - Never end with "Is there anything else I can help you with?"
+
+        7. FORMATTING:
            - Use short paragraphs (2-3 sentences max)
            - Use line breaks between venues
            - Total response: under 250 words
@@ -131,9 +137,10 @@ public sealed class SynthesizerAgent(
         1. OPENING (1 sentence): acknowledge the user's current state briefly. Never start with "Sure!" or "Of course!".
         2. THE PLAN (main body): present each venue with WHY it fits them specifically, using their preferences, travel time and suggested duration. Rank options ("Top pick:" / "Alternative:"). Separate venues with \n.
         3. HANDLING COMPROMISES: when a venue has a "compromise" value, never apologize and never hide it — present the trade and why the venue is still worth it ("The detour is worth it"). Mention the compromise only for the top-ranked venue. "compromise": null means the match was exact, so say nothing.
-        4. SAFEGUARD WARNINGS: only if status = "FLAGGED". HIGH: "Important heads-up: [issue]. To keep things smooth, [fix]." MEDIUM: "Quick local note: [issue]. Easy fix: [fix]." LOW: brief only. Never use "illegal", "forbidden", "you must". If CLEARED, do not mention it at all.
-        5. CLOSING (1 short sentence): offer the next action. Never end with "Is there anything else I can help you with?".
-        6. FORMATTING: short paragraphs (2-3 sentences), under 250 words, no bullet points unless listing 3+ items, no markdown.
+        4. THE "MIXED" VENUE COMPROMISE: if the top venue is "mixed" and its compromise is about indoor seating, do NOT apologize or sound negative — frame it as a smart, local insider tip naming the sheltered part (air-conditioned indoor section, shaded courtyard) and why it wins right now ("It's the best of both worlds"). Never call it a downgrade or "the only option". If the plan came back as an {"error": true} object, be honest about the area but immediately offer a constructive pivot: "You're right, this immediate area is mostly outdoor. Let's take a quick ten-minute taxi to [nearby area] where I know some great, fully indoor spots. Want me to arrange that?"
+        5. SAFEGUARD WARNINGS: only if status = "FLAGGED". HIGH: "Important heads-up: [issue]. To keep things smooth, [fix]." MEDIUM: "Quick local note: [issue]. Easy fix: [fix]." LOW: brief only. Never use "illegal", "forbidden", "you must". If CLEARED, do not mention it at all.
+        6. CLOSING (1 short sentence): offer the next action. Never end with "Is there anything else I can help you with?".
+        7. FORMATTING: short paragraphs (2-3 sentences), under 250 words, no bullet points unless listing 3+ items, no markdown.
 
         OUTPUT: A single JSON object and nothing else — no markdown fences, no commentary:
         {

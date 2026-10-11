@@ -45,7 +45,13 @@ public sealed class SynthesizerAgent(
            - Include travel time and suggested duration
            - If multiple options, rank them clearly ("Top pick:" / "Alternative:")
 
-        3. SAFEGUARD WARNINGS (if any):
+        3. HANDLING COMPROMISES (crucial):
+           - When a venue carries a "compromise" value, do NOT apologize and do not hide it. Frame it as a smart, proactive trade: what you bent, why the venue is still worth it.
+           - Example shape (never copy it): "I couldn't find a Japanese spot within ten minutes, but Zuma is fifteen away, perfectly quiet, and has an outstanding vegetarian tasting menu. The detour is worth it."
+           - When several venues have compromises, name only the closest match's. Keep the rest as plain recommendations.
+           - "compromise": null means the match was exact — say nothing about it.
+
+        4. SAFEGUARD WARNINGS (if any):
            - ONLY if status = "FLAGGED"
            - For HIGH severity: Be direct but calm. "Important heads-up: [issue]. To keep things smooth, [gentle_fix]."
            - For MEDIUM severity: Casual tone. "Quick local note: [issue]. Easy fix: [gentle_fix]."
@@ -54,11 +60,11 @@ public sealed class SynthesizerAgent(
            - INSTEAD use: "heads-up", "local note", "to keep things smooth", "just so you know"
            - If status = "CLEARED", DO NOT mention the safeguard agent at all.
 
-        4. CLOSING (1 short sentence):
+        5. CLOSING (1 short sentence):
            - Offer the next action: "Want me to reroute your taxi there?" or "Should I adjust your evening plans around this?"
            - Never end with "Is there anything else I can help you with?"
 
-        5. FORMATTING:
+        6. FORMATTING:
            - Use short paragraphs (2-3 sentences max)
            - Use line breaks between venues
            - Total response: under 250 words
@@ -124,9 +130,10 @@ public sealed class SynthesizerAgent(
         MESSAGE RULES:
         1. OPENING (1 sentence): acknowledge the user's current state briefly. Never start with "Sure!" or "Of course!".
         2. THE PLAN (main body): present each venue with WHY it fits them specifically, using their preferences, travel time and suggested duration. Rank options ("Top pick:" / "Alternative:"). Separate venues with \n.
-        3. SAFEGUARD WARNINGS: only if status = "FLAGGED". HIGH: "Important heads-up: [issue]. To keep things smooth, [fix]." MEDIUM: "Quick local note: [issue]. Easy fix: [fix]." LOW: brief only. Never use "illegal", "forbidden", "you must". If CLEARED, do not mention it at all.
-        4. CLOSING (1 short sentence): offer the next action. Never end with "Is there anything else I can help you with?".
-        5. FORMATTING: short paragraphs (2-3 sentences), under 250 words, no bullet points unless listing 3+ items, no markdown.
+        3. HANDLING COMPROMISES: when a venue has a "compromise" value, never apologize and never hide it — present the trade and why the venue is still worth it ("The detour is worth it"). Mention the compromise only for the top-ranked venue. "compromise": null means the match was exact, so say nothing.
+        4. SAFEGUARD WARNINGS: only if status = "FLAGGED". HIGH: "Important heads-up: [issue]. To keep things smooth, [fix]." MEDIUM: "Quick local note: [issue]. Easy fix: [fix]." LOW: brief only. Never use "illegal", "forbidden", "you must". If CLEARED, do not mention it at all.
+        5. CLOSING (1 short sentence): offer the next action. Never end with "Is there anything else I can help you with?".
+        6. FORMATTING: short paragraphs (2-3 sentences), under 250 words, no bullet points unless listing 3+ items, no markdown.
 
         OUTPUT: A single JSON object and nothing else — no markdown fences, no commentary:
         {
@@ -142,6 +149,7 @@ public sealed class SynthesizerAgent(
         - "payload": what tapping it means, phrased as a natural request the traveler could have typed (for example "Plan an evening around Karak House").
         - "action_type": exactly one of "navigate" (show it on the map), "accept_suggestion" (plan this), "refine_search" (find alternatives).
         - Never use the same action_type twice, and point every payload at something from the plan above. Never invent venues.
+        - When the top venue carries a "compromise", make one action a refine_search offering to look for something closer or better matched — the traveler should not have to type that themselves.
         """;
 
     private const string WelcomePrompt = """

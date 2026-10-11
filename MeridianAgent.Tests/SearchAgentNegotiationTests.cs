@@ -1,0 +1,296 @@
+namespace MeridianAgent.Tests;
+
+using MeridianAgent.Domain.Entities;
+
+using MeridianAgent.Infrastructure.AI.Agents;
+
+/// <summary>
+/// The Search Agent negotiates instead of refusing: when a soft constraint cannot be met it says so
+/// in "compromise" rather than returning an empty plan, and it only refuses when a hard constraint
+/// (dietary, avoid list) or the venue pool itself makes the request impossible.
+/// </summary>
+public class SearchAgentNegotiationTests
+{
+    private static SearchAgent CreateAgent(params string[] responses) =>
+        new(new ScriptedLlmClient(responses), NullLogger<SearchAgent>.Instance);
+
+    [Fact]
+    public async Task ProposeAsync_CarriesTheConcessionTheAgentDeclared()
+    {
+        var agent = CreateAgent("""
+            [
+              {
+                "venue_name": "Zuma",
+                "venue_type": "indoor",
+                "category": "restaurant",
+                "travel_time_minutes": 15,
+                "why_it_fits": "The quietest table nearby with a full vegetarian tasting menu.",
+                "compromise": "It is 15 mins away instead of your preferred 10 mins",
+                "estimated_duration": "90 minutes",
+                "best_time_to_visit": "Tonight"
+              }
+            ]
+            """);
+
+        var itinerary = await agent.ProposeAsync(TestData.Constraints, TestData.Request());
+
+        var venue = Assert.Single(itinerary.Venues);
+        Assert.Equal("Zuma", venue.Name);
+        Assert.Equal("It is 15 mins away instead of your preferred 10 mins", venue.Compromise);
+    }
+
+    [Fact]
+    public async Task ProposeAsync_TreatsAnAbsentConcessionAsAnExactMatch()
+    {
+        var agent = CreateAgent("""
+            [{"venue_name": "Karak House", "venue_type": "indoor", "category": "cafe",
+              "why_it_fits": "Exact match.", "compromise": null}]
+            """);
+
+        var itinerary = await agent.ProposeAsync(TestData.Constraints, TestData.Request());
+
+        Assert.Null(Assert.Single(itinerary.Venues).Compromise);
+    }
+
+    [Fact]
+    public async Task ProposeAsync_IgnoresABlankConcession()
+    {
+        var agent = CreateAgent("""
+            [{"venue_name": "Karak House", "venue_type": "indoor", "category": "cafe",
+              "why_it_fits": "Exact match.", "compromise": "   "}]
+            """);
+
+        var itinerary = await agent.ProposeAsync(TestData.Constraints, TestData.Request());
+
+        Assert.Null(Assert.Single(itinerary.Venues).Compromise);
+    }
+
+    [Fact]
+    public async Task ProposeAsync_NegotiatesRatherThanRefusingOnASoftConstraintMiss()
+    {
+        // The old prompt returned an empty array here and the traveler was told nothing fits.
+        var agent = CreateAgent("""
+            [{"venue_name": "Orfali Bros", "venue_type": "indoor", "category": "restaurant",
+              "travel_time_minutes": 18,
+              "why_it_fits": "Closest thing to the vibe you asked for that is still vegetarian.",
+              "compromise": "It is 8 mins further out than your usual limit, but it is the only quiet option"}]
+            """);
+
+        var itinerary = await agent.ProposeAsync(TestData.Constraints, TestData.Request());
+
+        var venue = Assert.Single(itinerary.Venues);
+        Assert.Equal("Orfali Bros", venue.Name);
+        Assert.Contains("further out", venue.Compromise!);
+    }
+
+    [Fact]
+    public async Task ProposeAsync_StillRefusesWhenAHardConstraintCannotBeMet()
+    {
+        var agent = CreateAgent("""{"error": true, "reason": "You need vegetarian and quiet, but everything nearby is loud, meat-focused street food"}""");
+
+        var exception = await Assert.ThrowsAsync<NoVenuesFoundException>(() =>
+            agent.ProposeAsync(TestData.Constraints, TestData.Request()));
+
+        Assert.Contains("vegetarian and quiet", exception.Reason);
+    }
+
+    [Fact]
+    public async Task ProposeAsync_StillRefusesAnEmptyArray()
+    {
+        var agent = CreateAgent("""[]""");
+
+        await Assert.ThrowsAsync<NoVenuesFoundException>(() =>
+            agent.ProposeAsync(TestData.Constraints, TestData.Request()));
+    }
+
+    [Fact]
+    public async Task ProposeAsync_AsksForNearbyVenuesWhenNoneWereSupplied()
+    {
+        var client = new ScriptedLlmClient(
+            """[{"venue_name": "Karak House", "venue_type": "indoor", "category": "cafe"}]""");
+        var agent = new SearchAgent(client, NullLogger<SearchAgent>.Instance);
+
+        await agent.ProposeAsync(TestData.Constraints, EmptyRequest());
+
+        var prompt = client.Calls[0].Prompt;
+        Assert.Contains("nearby_venues list above is empty", prompt);
+        Assert.Contains("general knowledge", prompt);
+        Assert.Contains("\"nearby_venues\": []", prompt);
+    }
+
+    [Fact]
+    public async Task ProposeAsync_DoesNotAskForNearbyVenuesWhenTheListHasEntries()
+    {
+        var client = new ScriptedLlmClient(
+            """[{"venue_name": "Karak House", "venue_type": "indoor", "category": "cafe"}]""");
+        var agent = new SearchAgent(client, NullLogger<SearchAgent>.Instance);
+
+        await agent.ProposeAsync(TestData.Constraints, TestData.Request());
+
+        Assert.DoesNotContain("general knowledge", client.Calls[0].Prompt);
+    }
+
+    [Fact]
+    public async Task ProposeAsync_TellsTheModelToNegotiateRatherThanRefuse()
+    {
+        var client = new ScriptedLlmClient(
+            """[{"venue_name": "Karak House", "venue_type": "indoor", "category": "cafe"}]""");
+        var agent = new SearchAgent(client, NullLogger<SearchAgent>.Instance);
+
+        await agent.ProposeAsync(TestData.Constraints, TestData.Request());
+
+        var prompt = client.Calls[0].Prompt;
+        Assert.Contains("NEGOTIATE, DO NOT REFUSE", prompt);
+        Assert.Contains("CLOSEST POSSIBLE MATCH", prompt);
+        Assert.Contains("HARD constraints are absolute", prompt);
+        Assert.Contains("preferences, not filters", prompt);
+    }
+
+    private static TravelRequest EmptyRequest() => TestData.Request() with
+    {
+        NearbyVenues = Array.Empty<NearbyVenue>(),
+    };
+}
+
+/// <summary>
+/// A negotiated plan has to stay visible to the model that speaks to the traveler, so the
+/// compromise is serialized into the itinerary the Synthesizer is handed rather than dropped here.
+/// </summary>
+public class CompromiseHandoffTests
+{
+    [Fact]
+    public void ItineraryCarriesTheCompromiseIntoTheSynthesizerJson()
+    {
+        var compromised = new ProposedItinerary(new[]
+        {
+            new Venue
+            {
+                Name = "Zuma",
+                VenueType = VenueType.Indoor,
+                Category = VenueCategory.Restaurant,
+                TravelTimeMinutes = 15,
+                WhyItFits = "Quiet and fully vegetarian.",
+                Compromise = "It is 15 mins away instead of your preferred 10 mins",
+            },
+        });
+
+        var json = JsonElementReader.Serialize(compromised.Venues);
+
+        Assert.Contains("\"compromise\"", json);
+        Assert.Contains("instead of your preferred 10 mins", json);
+    }
+
+    [Fact]
+    public void AnExactMatchSendsNoCompromiseFieldAtAll()
+    {
+        var exact = new ProposedItinerary(new[]
+        {
+            new Venue
+            {
+                Name = "Karak House",
+                VenueType = VenueType.Indoor,
+                Category = VenueCategory.Cafe,
+                TravelTimeMinutes = 6,
+                WhyItFits = "Warm, quiet, fully vegetarian.",
+            },
+        });
+
+        var json = JsonElementReader.Serialize(exact.Venues);
+
+        Assert.DoesNotContain("compromise", json);
+    }
+}
+
+/// <summary>
+/// The Synthesizer is the only voice the traveler hears, so both of its prompts have to know how to
+/// present a negotiated plan. Asserted against the prompt text itself, which is where those rules live.
+/// </summary>
+public class SynthesizerCompromisePromptTests
+{
+    private static readonly string[] Prompts =
+    {
+        typeof(SynthesizerAgent).GetField("Prompt", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!.GetValue(null) as string ?? string.Empty,
+        typeof(SynthesizerAgent).GetField("QuickActionsPrompt", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!.GetValue(null) as string ?? string.Empty,
+    };
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void BothPromptsTellTheVoiceHowToPresentACompromise(int index)
+    {
+        var prompt = Prompts[index];
+
+        Assert.Contains("compromise", prompt, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("apolog", prompt, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("safeguard", prompt, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TheStructuredPromptAlsoOffersToLookForSomethingCloser()
+    {
+        // The chat uses the structured prompt: a compromise should hand the traveler a way out.
+        var structured = Prompts[1];
+
+        Assert.Contains("refine_search", structured);
+        Assert.Contains("compromise", structured);
+    }
+}
+
+/// <summary>
+/// A small model asked for an array often answers with a single object. Rejecting that means a
+/// usable venue never reaches the traveler, which is the same dead end the negotiator removes.
+/// </summary>
+public class SearchAgentShapeTests
+{
+    private static SearchAgent CreateAgent(params string[] responses) =>
+        new(new ScriptedLlmClient(responses), NullLogger<SearchAgent>.Instance);
+
+    [Fact]
+    public async Task ProposeAsync_AcceptsASingleVenueObjectInsteadOfAnArray()
+    {
+        var agent = CreateAgent("""
+            {
+              "venue_name": "Orfali Bros",
+              "venue_type": "indoor",
+              "category": "restaurant",
+              "travel_time_minutes": 15,
+              "why_it_fits": "The quietest vegetarian table nearby.",
+              "compromise": "It is 5 mins further out than your usual limit"
+            }
+            """);
+
+        var itinerary = await agent.ProposeAsync(TestData.Constraints, TestData.Request());
+
+        var venue = Assert.Single(itinerary.Venues);
+        Assert.Equal("Orfali Bros", venue.Name);
+        Assert.Equal(15, venue.TravelTimeMinutes);
+        Assert.Contains("further out", venue.Compromise!);
+    }
+
+    [Fact]
+    public async Task ProposeAsync_StillRejectsAnArrayOfNonObjects()
+    {
+        var agent = CreateAgent("""["Karak House", "Orfali Bros"]""", """["Karak House", "Orfali Bros"]""");
+
+        await Assert.ThrowsAsync<AgentInvocationException>(() =>
+            agent.ProposeAsync(TestData.Constraints, TestData.Request()));
+    }
+
+    [Fact]
+    public async Task ProposeAsync_StillRejectsSomethingThatIsNotVenuesAtAll()
+    {
+        var agent = CreateAgent("""{"complaint": "there is nowhere good to eat"}""", """{"complaint": "there is nowhere good to eat"}""");
+
+        await Assert.ThrowsAsync<AgentInvocationException>(() =>
+            agent.ProposeAsync(TestData.Constraints, TestData.Request()));
+    }
+
+    [Fact]
+    public async Task ProposeAsync_KeepsTreatingAnEmptyArrayAsNoVenues()
+    {
+        var agent = CreateAgent("""[]""");
+
+        await Assert.ThrowsAsync<NoVenuesFoundException>(() =>
+            agent.ProposeAsync(TestData.Constraints, TestData.Request()));
+    }
+}

@@ -18,6 +18,14 @@ public sealed record Venue
     [JsonPropertyName("why_it_fits")]
     public string WhyItFits { get; init; } = string.Empty;
 
+    /// <summary>
+    /// Which preference the Search Agent bent to offer this venue, phrased for the traveler
+    /// ("It's 15 minutes away instead of your usual 10"), or null when the match was exact. Present
+    /// when the agent negotiated rather than refused, so the Synthesizer can say so plainly.
+    /// </summary>
+    [JsonPropertyName("compromise")]
+    public string? Compromise { get; init; }
+
     [JsonPropertyName("estimated_duration")]
     public string EstimatedDuration { get; init; } = string.Empty;
 

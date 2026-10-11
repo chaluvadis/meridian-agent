@@ -20,11 +20,6 @@
 @code {
     private void GoBack() => Navigation.NavigateTo("/");
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            await JSRuntime.InvokeVoidAsync("setDocumentTitle", "Edit profile — The Meridian Agent");
-        }
-    }
+    protected override Task OnAfterRenderAsync(bool firstRender) =>
+        BrowserTitle.SetAsync(JSRuntime, firstRender, "Edit profile — The Meridian Agent");
 }

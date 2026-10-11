@@ -14,7 +14,7 @@
     It reads and writes through the same ChatState the chat page uses, so picking a day here
     changes what the chat shows — the panel is a view onto the conversation, not a copy of it.
 *@
-@if (_visible)
+@if (Visible)
 {
     <div class="glance-backdrop" @onclick="HideAsync"></div>
 
@@ -34,7 +34,7 @@
             </button>
         </header>
 
-        <MudTabs Rounded="true" Elevation="0" Class="glance-tabs" PanelClass="glance-tab-panels">
+        <MudTabs Rounded="true" Elevation="0" Class="glance-tabs" TabPanelsClass="glance-tab-panels">
             <MudTabPanel Text="Saved" Style="font-family: inherit;">
                 @if (_favorites.Count == 0)
                 {
@@ -102,25 +102,11 @@
 
 @code {
     [Parameter]
-    public bool Visible
-    {
-        get => _visible;
-        set
-        {
-            if (value == _visible)
-            {
-                return;
-            }
-
-            _visible = value;
-            _ = VisibleChanged.InvokeAsync(value);
-        }
-    }
+    public bool Visible { get; set; }
 
     [Parameter]
     public EventCallback<bool> VisibleChanged { get; set; }
 
-    private bool _visible;
     private bool _loaded;
     private List<FavoriteRow> _favorites = new();
     private List<DayRow> _days = new();
@@ -134,7 +120,7 @@
     {
         // The panel only reaches for the database once it is actually open, so a closed glance
         // panel costs a traveler nothing.
-        if (_visible && !_loaded)
+        if (Visible && !_loaded)
         {
             _loaded = true;
             await RefreshAsync();
@@ -154,7 +140,7 @@
 
     private async void OnFavoritesChanged()
     {
-        if (!_visible)
+        if (!Visible)
         {
             return;
         }
@@ -248,9 +234,5 @@
         await HideAsync();
     }
 
-    private Task HideAsync()
-    {
-        _visible = false;
-        return VisibleChanged.InvokeAsync(false);
-    }
+    private Task HideAsync() => VisibleChanged.InvokeAsync(false);
 }

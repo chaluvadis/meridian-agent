@@ -8,11 +8,6 @@
 <OnboardingWizard Mode="WizardMode.Onboarding" />
 
 @code {
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            await JSRuntime.InvokeVoidAsync("setDocumentTitle", "Welcome — The Meridian Agent");
-        }
-    }
+    protected override Task OnAfterRenderAsync(bool firstRender) =>
+        BrowserTitle.SetAsync(JSRuntime, firstRender, "Welcome — The Meridian Agent");
 }

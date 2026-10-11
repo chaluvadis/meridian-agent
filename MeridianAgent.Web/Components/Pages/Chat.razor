@@ -386,24 +386,8 @@
         InvokeAsync(StateHasChanged);
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            try
-            {
-                await JSRuntime.InvokeVoidAsync("setDocumentTitle", "Chat — The Meridian Agent");
-            }
-            catch (JSException)
-            {
-                // JS may be unavailable during prerender; the tab title is best-effort.
-            }
-            catch (ObjectDisposedException)
-            {
-                // Prerender-only render.
-            }
-        }
-    }
+    protected override Task OnAfterRenderAsync(bool firstRender) =>
+        BrowserTitle.SetAsync(JSRuntime, firstRender, "Chat — The Meridian Agent");
 
     private async Task OnKeyDown(KeyboardEventArgs args)
     {

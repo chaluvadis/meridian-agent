@@ -84,12 +84,5 @@
 
     private void GoToProfileEdit() => Navigation.NavigateTo("/profile/edit");
 
-    private void OpenGlance()
-    {
-        _showGlance = true;
-
-        // The bar is the shell rather than a routed page, so the flip is made explicit: the panel
-        // must appear the moment the traveler taps the clock.
-        StateHasChanged();
-    }
+    private void OpenGlance() => _showGlance = true;
 }

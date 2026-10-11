@@ -34,16 +34,15 @@ public sealed class SearchAgent(
 
         STRICT RULES:
         1. Output ONLY a valid JSON array. No markdown, no explanations.
-        2. Propose between 1 and 3 options. Never more than 3.
-        3. REALITY CHECK:
+        2. REALITY CHECK:
            - If temperature > 35°C OR is_raining = true → ALL suggestions MUST be indoor/sheltered.
            - If local_time is between 23:00 and 06:00 → only suggest venues open at that hour.
            - If energy_level = "low" → prioritize venues within 10 minutes travel, minimal walking.
-        4. PERSONALIZATION CHECK:
-           - Every suggestion MUST satisfy ALL relevant_dietary constraints (hard requirement).
-           - Every suggestion MUST NOT appear in avoid_list (hard requirement).
-           - PREFER venues that match relevant_interests, but treat interests as preferences, not filters: never discard an otherwise perfect venue just because one interest is unmatched.
-        5. If NO venue satisfies the hard constraints (dietary, avoid_list), output an empty array with a reason. Never compromise on hard constraints (dietary, avoid_list).
+        3. PERSONALIZATION CHECK:
+           - HARD constraints are absolute: relevant_dietary and avoid_list. Never compromise on these, ever.
+           - SOFT constraints (relevant_interests, pacing_preference, energy_level, time_sensitivity, budget_range, travel time) are preferences, not filters. Never discard an otherwise strong venue just because one of them is unmet.
+        4. NEGOTIATE, DO NOT REFUSE: a perfect match is rare and refusing is a failure of your job. When nothing satisfies every soft constraint, propose the CLOSEST POSSIBLE MATCH and state in "compromise" exactly which preference you bent and by how much — for example "It is 15 mins away instead of your preferred 10 mins" or "It is Italian rather than Japanese, but it is the quietest table nearby". Set "compromise" to null only when the match is exact.
+        5. Propose between 1 and 3 options. Never more than 3.
 
         OUTPUT FORMAT (exact):
         [
@@ -52,17 +51,26 @@ public sealed class SearchAgent(
             "venue_type": "indoor | outdoor | mixed",
             "category": "restaurant | cafe | museum | park | market | activity",
             "travel_time_minutes": 0,
-            "why_it_fits": "One concise sentence explaining why this matches the user's constraints and current situation.",
+            "why_it_fits": "One concise sentence explaining why this is the best option available right now.",
+            "compromise": "string | null — the soft constraint you relaxed to make this work, or null if it fits exactly.",
             "estimated_duration": "string",
             "best_time_to_visit": "string"
           }
         ]
 
-        If no suitable venue exists:
+        Reserve the error form for a genuine dead end only — when no venue in the area satisfies the HARD constraints:
         {
           "error": true,
-          "reason": "string explaining why no venue fits"
+          "reason": "string naming the fundamental conflict (e.g., 'You need vegetarian and quiet, but everything nearby is loud, meat-focused street food')"
         }
+        """;
+
+    /// <summary>
+    /// Authorizes the model to use its own knowledge when the nearby-venue list is empty. Without
+    /// it a bare list reads as "there is nothing here" and the agent refuses instead of negotiating.
+    /// </summary>
+    private const string NoVenuesSuppliedNote = """
+        NOTE: The nearby_venues list above is empty. You are authorized to suggest well-known, real venues in the area named in current_reality that fit the constraints, using your general knowledge of the place.
         """;
 
     public override string AgentName => "SearchAgent";
@@ -88,6 +96,12 @@ public sealed class SearchAgent(
                 ["NearbyVenuesJson"] = JsonElementReader.Serialize(request.NearbyVenues),
             });
 
+        // An empty list otherwise reads as "there is nothing here" and the model refuses.
+        if (request.NearbyVenues.Count == 0)
+        {
+            prompt += $"\n\n{NoVenuesSuppliedNote}";
+        }
+
         return RunJsonAsync(
             prompt,
             element => ParseItinerary(element),
@@ -103,21 +117,23 @@ public sealed class SearchAgent(
             throw new NoVenuesFoundException(reason ?? "the search agent found nothing that fits");
         }
 
-        if (root.ValueKind == JsonValueKind.Array && root.GetArrayLength() == 0)
-        {
-            throw new NoVenuesFoundException("nothing nearby fits your non-negotiables");
-        }
+        var items = ToVenueElements(root);
 
-        if (root.ValueKind != JsonValueKind.Array)
+        if (items is null)
         {
             return ParseOutcome<ProposedItinerary>.Fail("expected a JSON array of venues");
+        }
+
+        if (items.Count == 0)
+        {
+            throw new NoVenuesFoundException("nothing nearby fits your non-negotiables");
         }
 
         var errors = new List<string>();
         var venues = new List<Venue>();
 
         var index = 0;
-        foreach (var item in root.EnumerateArray())
+        foreach (var item in items)
         {
             index++;
             if (item.ValueKind != JsonValueKind.Object)
@@ -141,6 +157,7 @@ public sealed class SearchAgent(
                 Category = category.Value,
                 TravelTimeMinutes = JsonElementReader.ReadInt(item, "travel_time_minutes", errors),
                 WhyItFits = JsonElementReader.ReadString(item, "why_it_fits", errors, required: false) ?? string.Empty,
+                Compromise = ReadCompromise(item),
                 EstimatedDuration = JsonElementReader.ReadString(item, "estimated_duration", errors, required: false) ?? string.Empty,
                 BestTimeToVisit = JsonElementReader.ReadString(item, "best_time_to_visit", errors, required: false) ?? string.Empty,
             });
@@ -164,4 +181,27 @@ public sealed class SearchAgent(
 
         return ParseOutcome<ProposedItinerary>.Ok(new ProposedItinerary(venues));
     }
+
+    /// <summary>
+    /// The venues to read, whether the model sent the array it was asked for or a single object.
+    /// Small models routinely answer "one option" with the object rather than a one-element array,
+    /// and throwing that away means a perfectly usable venue never reaches the traveler.
+    /// </summary>
+    private static IReadOnlyList<JsonElement>? ToVenueElements(JsonElement root) => root.ValueKind switch
+    {
+        JsonValueKind.Array => root.EnumerateArray().ToArray(),
+        JsonValueKind.Object => new[] { root },
+        _ => null,
+    };
+
+    /// <summary>
+    /// The negotiated concession the model declared, or null. A blank string is treated as nothing
+    /// rather than an empty "compromise" the Synthesizer would then have to explain.
+    /// </summary>
+    private static string? ReadCompromise(JsonElement item) =>
+        item.TryGetProperty("compromise", out var property) &&
+        property.ValueKind == JsonValueKind.String &&
+            !string.IsNullOrWhiteSpace(property.GetString())
+            ? property.GetString()!.Trim()
+            : null;
 }

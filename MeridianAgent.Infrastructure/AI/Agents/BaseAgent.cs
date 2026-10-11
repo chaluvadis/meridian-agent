@@ -17,6 +17,12 @@ public abstract class AgentBase(ILlmClient client, ILogger logger, string defaul
 
     protected int Attempts { get; } = Math.Max(1, attempts);
 
+    /// <summary>
+    /// The attempt whose response is being validated right now. Lets a parser hold its final attempt
+    /// to a looser standard, so a usable answer survives rather than costing the whole query.
+    /// </summary>
+    protected int CurrentAttempt { get; private set; }
+
     public abstract string AgentName { get; }
 
     public abstract string SanitizerModel { get; }
@@ -31,6 +37,7 @@ public abstract class AgentBase(ILlmClient client, ILogger logger, string defaul
 
         for (var attempt = 1; attempt <= Attempts; attempt++)
         {
+            CurrentAttempt = attempt;
             var attemptPrompt = prompt;
             if (attempt > 1)
             {

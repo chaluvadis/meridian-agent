@@ -294,3 +294,97 @@ public class SearchAgentShapeTests
             agent.ProposeAsync(TestData.Constraints, TestData.Request()));
     }
 }
+
+/// <summary>
+/// A compromise the traveler cannot weigh — "slightly further out" — is a dead end wearing a
+/// trade, so it is rejected and the agent is told why. The venue itself is never the price of that
+/// rule: a last attempt that still hedges is accepted rather than losing the plan.
+/// </summary>
+public class CompromiseConsistencyTests
+{
+    private static SearchAgent CreateAgent(params string[] responses) =>
+        new(new ScriptedLlmClient(responses), NullLogger<SearchAgent>.Instance);
+
+    private static string Venue(string compromise) => $$"""
+        [{"venue_name": "Orfali Bros", "venue_type": "indoor", "category": "restaurant",
+          "travel_time_minutes": 15,
+          "why_it_fits": "The quietest vegetarian table nearby.",
+          "compromise": "{{compromise}}"}]
+        """;
+
+    [Fact]
+    public async Task ProposeAsync_RetriesWhenTheCompromiseIsOnlyAHedge()
+    {
+        var client = new ScriptedLlmClient(Venue("slightly further out"), Venue("It is 15 mins away instead of your preferred 10 mins"));
+        var agent = new SearchAgent(client, NullLogger<SearchAgent>.Instance);
+
+        var itinerary = await agent.ProposeAsync(TestData.Constraints, TestData.Request());
+
+        Assert.Equal(2, client.Calls.Count);
+        Assert.Contains("compromise must state the trade", client.Calls[1].Prompt);
+        Assert.Equal("It is 15 mins away instead of your preferred 10 mins", Assert.Single(itinerary.Venues).Compromise);
+    }
+
+    [Fact]
+    public async Task ProposeAsync_KeepsTheVenueWhenEveryAttemptHedges()
+    {
+        // The venue is the valuable part: losing the whole plan to a wording rule is the worse trade.
+        var client = new ScriptedLlmClient(Venue("slightly further out"), Venue("still vaguely out of the way"));
+        var agent = new SearchAgent(client, NullLogger<SearchAgent>.Instance);
+
+        var itinerary = await agent.ProposeAsync(TestData.Constraints, TestData.Request());
+
+        Assert.Equal(2, client.Calls.Count);
+        var venue = Assert.Single(itinerary.Venues);
+        Assert.Equal("Orfali Bros", venue.Name);
+        Assert.Equal("still vaguely out of the way", venue.Compromise);
+    }
+
+    [Fact]
+    public async Task ProposeAsync_LeavesAnExactMatchAloneOnEveryAttempt()
+    {
+        var client = new ScriptedLlmClient(
+            """[{"venue_name": "Karak House", "venue_type": "indoor", "category": "cafe", "compromise": null}]""",
+            """[{"venue_name": "Karak House", "venue_type": "indoor", "category": "cafe", "compromise": null}]""");
+        var agent = new SearchAgent(client, NullLogger<SearchAgent>.Instance);
+
+        var itinerary = await agent.ProposeAsync(TestData.Constraints, TestData.Request());
+
+        Assert.Single(client.Calls);
+        Assert.Null(Assert.Single(itinerary.Venues).Compromise);
+    }
+
+    [Theory]
+    [InlineData("It is 15 mins away instead of your preferred 10 mins")]
+    [InlineData("Italian rather than the Japanese you asked for")]
+    [InlineData("about 20 dirhams more per head than you had in mind")]
+    [InlineData("It is 8 min further out than your usual limit, but it is the only quiet table")]
+    public async Task ProposeAsync_KeepsAMeasuredOrNamedTradeOnTheFirstAttempt(string compromise)
+    {
+        var client = new ScriptedLlmClient(Venue(compromise), Venue(compromise));
+        var agent = new SearchAgent(client, NullLogger<SearchAgent>.Instance);
+
+        var itinerary = await agent.ProposeAsync(TestData.Constraints, TestData.Request());
+
+        // Accepted as written, so the agent never had to be told twice.
+        Assert.Single(client.Calls);
+        Assert.Equal(compromise, Assert.Single(itinerary.Venues).Compromise);
+    }
+
+    [Theory]
+    [InlineData("slightly further out than you would like")]
+    [InlineData("a bit pricier")]
+    [InlineData("close enough to what you wanted")]
+    [InlineData("not the vibe you had in mind")]
+    public async Task ProposeAsync_WontPassOffAHedgeAsATrade(string hedge)
+    {
+        var client = new ScriptedLlmClient(Venue(hedge), Venue("It is 15 mins away instead of your preferred 10 mins"));
+        var agent = new SearchAgent(client, NullLogger<SearchAgent>.Instance);
+
+        var itinerary = await agent.ProposeAsync(TestData.Constraints, TestData.Request());
+
+        Assert.Equal(2, client.Calls.Count);
+        Assert.Contains(hedge, client.Calls[1].Prompt);
+        Assert.Equal("It is 15 mins away instead of your preferred 10 mins", Assert.Single(itinerary.Venues).Compromise);
+    }
+}

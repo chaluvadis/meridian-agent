@@ -41,7 +41,12 @@ public sealed class SearchAgent(
         3. PERSONALIZATION CHECK:
            - HARD constraints are absolute: relevant_dietary and avoid_list. Never compromise on these, ever.
            - SOFT constraints (relevant_interests, pacing_preference, energy_level, time_sensitivity, budget_range, travel time) are preferences, not filters. Never discard an otherwise strong venue just because one of them is unmet.
-        4. NEGOTIATE, DO NOT REFUSE: a perfect match is rare and refusing is a failure of your job. When nothing satisfies every soft constraint, propose the CLOSEST POSSIBLE MATCH and state in "compromise" exactly which preference you bent and by how much — for example "It is 15 mins away instead of your preferred 10 mins" or "It is Italian rather than Japanese, but it is the quietest table nearby". Set "compromise" to null only when the match is exact.
+        4. NEGOTIATE, DO NOT REFUSE: a perfect match is rare and refusing is a failure of your job. When nothing satisfies every soft constraint, propose the CLOSEST POSSIBLE MATCH and state in "compromise" exactly which preference you bent and by how much.
+           - State the trade in one of two forms, never anything vaguer:
+             * a measured difference — "It is 15 mins away instead of your preferred 10 mins", "about 20 dirhams more per head"
+             * a named swap — "Italian rather than the Japanese you asked for"
+           - Never write "slightly further out", "a bit pricier", "close enough": the traveler has to be able to accept or refuse the trade, and cannot weigh a hedge.
+           - Set "compromise" to null only when the match is exact.
         5. Propose between 1 and 3 options. Never more than 3.
 
         OUTPUT FORMAT (exact):
@@ -109,7 +114,7 @@ public sealed class SearchAgent(
             allowErrorObject: true);
     }
 
-    private static ParseOutcome<ProposedItinerary> ParseItinerary(JsonElement root)
+    private ParseOutcome<ProposedItinerary> ParseItinerary(JsonElement root)
     {
         if (root.ValueKind == JsonValueKind.Object &&
             JsonExtractor.TryGetErrorMessage(root, out var reason))
@@ -157,7 +162,7 @@ public sealed class SearchAgent(
                 Category = category.Value,
                 TravelTimeMinutes = JsonElementReader.ReadInt(item, "travel_time_minutes", errors),
                 WhyItFits = JsonElementReader.ReadString(item, "why_it_fits", errors, required: false) ?? string.Empty,
-                Compromise = ReadCompromise(item),
+                Compromise = ReadCompromise(item, index, errors),
                 EstimatedDuration = JsonElementReader.ReadString(item, "estimated_duration", errors, required: false) ?? string.Empty,
                 BestTimeToVisit = JsonElementReader.ReadString(item, "best_time_to_visit", errors, required: false) ?? string.Empty,
             });
@@ -196,12 +201,45 @@ public sealed class SearchAgent(
 
     /// <summary>
     /// The negotiated concession the model declared, or null. A blank string is treated as nothing
-    /// rather than an empty "compromise" the Synthesizer would then have to explain.
+    /// rather than an empty "compromise" the Synthesizer would then have to explain. A trade the
+    /// traveler could not accept or refuse is reported instead of kept — but only while an attempt
+    /// remains, because a venue with a loosely worded trade still beats no plan at all.
     /// </summary>
-    private static string? ReadCompromise(JsonElement item) =>
-        item.TryGetProperty("compromise", out var property) &&
-        property.ValueKind == JsonValueKind.String &&
-            !string.IsNullOrWhiteSpace(property.GetString())
-            ? property.GetString()!.Trim()
-            : null;
+    private string? ReadCompromise(JsonElement item, int index, List<string> errors)
+    {
+        if (!item.TryGetProperty("compromise", out var property) ||
+            property.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        var text = property.GetString()?.Trim();
+
+        if (string.IsNullOrEmpty(text))
+        {
+            return null;
+        }
+
+        if (StatesTheDifference(text) || CurrentAttempt >= Attempts)
+        {
+            return text;
+        }
+
+        errors.Add(
+            $"venue #{index} compromise must state the trade, as a measurement ('It is 15 mins away " +
+            "instead of your preferred 10 mins') or a named swap ('Italian rather than the Japanese " +
+            $"you asked for'); '{text}' says something was relaxed but not what");
+
+        return text;
+    }
+
+    /// <summary>
+    /// Whether a compromise names the difference it made: a quantity, or an explicit "X rather than
+    /// Y" swap. Vague hedges ("slightly further out") fail, so the traveler is never asked to accept
+    /// a trade they cannot weigh.
+    /// </summary>
+    private static bool StatesTheDifference(string compromise) =>
+        (compromise.Length >= 15 && compromise.Any(char.IsDigit)) ||
+        compromise.Contains(" instead of ", StringComparison.OrdinalIgnoreCase) ||
+        compromise.Contains(" rather than ", StringComparison.OrdinalIgnoreCase);
 }

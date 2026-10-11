@@ -7,7 +7,7 @@ services:
     ports:
       - "${WEB_PORT:-8080}:8080"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Production # Changed to Production for Coolify
+      - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8080
       - Ollama__BaseUrl=http://ollama:11434
       - Ollama__RequestTimeoutSeconds=300
@@ -18,25 +18,24 @@ services:
       - Weather__BaseUrl=https://api.openweathermap.org
       - Weather__ApiKey=${WEATHER_API_KEY:-}
       - Nominatim__BaseUrl=https://nominatim.openstreetmap.org
-      # Routing and venue lookup are separate services so each can be swapped for a local one.
       - Osrm__BaseUrl=http://osrm:5000
       - Overpass__BaseUrl=http://overpass:80/api
       - Storage__DataDirectory=/app/samples
     volumes:
       - ./samples:/app/samples
-      - meridian-data:/app/data # Persists SQLite DB
+      - meridian-data:/app/data
     depends_on:
       ollama:
         condition: service_started
       qdrant:
         condition: service_started
+      # Note: We do NOT depend_on osrm/overpass here because they take 15-30 mins 
+      # to build on first run. Your C# code MUST handle their temporary unavailability gracefully.
     healthcheck:
-      # Note: Ensure your Dockerfile installs 'curl' in the runtime stage, 
-      # or change this to: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
       interval: 30s
       timeout: 5s
-      start_period: 20s
+      start_period: 60s # Increased start period for .NET boot
       retries: 3
     restart: unless-stopped
 
@@ -46,16 +45,17 @@ services:
     expose:
       - "11434"
     volumes:
-      - ollama-models:/root/.ollama # This is where models MUST be saved
+      - ollama-models:/root/.ollama
     restart: unless-stopped
+    # Optional but recommended: limit Ollama's RAM usage if your server is small
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 4G
 
-  # OSRM routing: driving minutes between two positions, rather than a distance somebody asserted.
   osrm:
     image: osrm/osrm-backend:latest
     container_name: meridian-osrm
-    # The router needs an extract to work from, so the first start fetches the UAE region from
-    # Geofabrik and builds the graph into the volume. Later starts reuse it and skip the download
-    # and the extract. Point OSRM_REGION_URL at a smaller area if the graph is more than you need.
     environment:
       - OSRM_REGION_URL=https://download.geofabrik.de/asia/united-arab-emirates-latest.osm.pbf
     command:
@@ -63,28 +63,25 @@ services:
       - -c
       - |
         if [ ! -f /data/region.osm.pbf ]; then
-          echo 'Fetching the region extract for routing…';
+          echo 'Fetching UAE region extract for routing (this takes a few minutes)...';
           curl -sSL "$$OSRM_REGION_URL" -o /data/region.osm.pbf;
         fi
+        echo 'Building OSRM routing graph (this is CPU/RAM intensive)...';
         osrm-extract -p /opt/car.lua /data/region.osm.pbf &&
         osrm-partition /data/region.osrm &&
         osrm-customize /data/region.osrm &&
-        osrm-routed /data/region.osrm
+        echo 'OSRM ready. Starting router...';
+        osrm-routed --algorithm mld /data/region.osrm
     expose:
       - "5000"
     volumes:
       - osrm-data:/data
     restart: unless-stopped
 
-  # Overpass: the venues that are actually around the traveler, straight from OpenStreetMap. It
-  # answers the one query the app makes - places with a name within a radius - and nothing is
-  # proxied through a public instance, so rate limits stop being somebody else's problem.
   overpass:
     image: wiktorn/overpass-api:latest
     container_name: meridian-overpass
     environment:
-      # First start downloads the region and builds the database, which takes minutes rather than
-      # seconds and needs internet. It happens once; the volume keeps it after that.
       - OVERPASS_MODE=init
       - OVERPASS_META=no
       - OVERPASS_PLANET_URL=https://download.geofabrik.de/asia/united-arab-emirates-latest.osm.pbf
@@ -97,14 +94,15 @@ services:
   qdrant:
     image: qdrant/qdrant:latest
     container_name: meridian-qdrant
-    ports:
-      - "${QDRANT_HTTP_PORT:-6333}:6333"
-      - "${QDRANT_GRPC_PORT:-6334}:6334"
+    # REMOVED 'ports' mapping. Coolify's internal network handles http://qdrant:6333 perfectly.
+    # This prevents exposing your vector DB to the public internet.
+    expose:
+      - "6333"
+      - "6334"
     volumes:
       - qdrant-data:/qdrant/storage
     restart: unless-stopped
 
-  # Helper service to pre-pull models on first deployment
   ollama-models-puller:
     image: ollama/ollama:latest
     container_name: meridian-ollama-puller
@@ -112,12 +110,12 @@ services:
       ollama:
         condition: service_started
     volumes:
-      - ollama-models:/root/.ollama # CRITICAL FIX: Must share the same volume as the main ollama service!
+      - ollama-models:/root/.ollama
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
         echo 'Waiting for Ollama to be ready...';
-        sleep 10; # Give the main ollama service time to fully boot
+        sleep 15; 
         echo 'Pulling models for The Meridian Agent…';
         ollama pull qwen2.5:1.5b &&
         ollama pull qwen2.5:3b &&
@@ -126,13 +124,11 @@ services:
         echo 'Model pull finished. This container will now exit.';
     environment:
       - OLLAMA_HOST=http://ollama:11434
-    restart: "no" # Runs once and exits
+    restart: "no"
 
 volumes:
   ollama-models:
   qdrant-data:
   meridian-data:
-  # OSRM routing graph, extracted once from the region and reused.
   osrm-data:
-  # Overpass database, built once from the region extract.
   overpass-db:

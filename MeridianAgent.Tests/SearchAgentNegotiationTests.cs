@@ -269,6 +269,29 @@ public class SearchAgentShapeTests
     }
 
     [Fact]
+    public async Task ProposeAsync_CarriesTheRawResponseInTheFailureForTheLogs()
+    {
+        // An agent failure reaches the orchestrator's catch, which logs the exception message: the
+        // last raw response rides along so a production log shows what the model actually said.
+        // Each unparseable answer costs an extra call to the JSON sanitizer, so four responses cover
+        // the two attempts.
+        var client = new ScriptedLlmClient(
+            "not json at all",
+            "still not json",
+            "gave up entirely",
+            "not repairable");
+        var agent = new SearchAgent(client, NullLogger<SearchAgent>.Instance);
+
+        var exception = await Assert.ThrowsAsync<Domain.Exceptions.AgentInvocationException>(() =>
+            agent.ProposeAsync(TestData.Constraints, TestData.Request()));
+
+        // The last raw response from the main model, not the sanitizer's: it is what the model said
+        // immediately before the agent gave up.
+        Assert.Contains("gave up entirely", exception.Message);
+        Assert.Contains("last raw response", exception.Message);
+    }
+
+    [Fact]
     public async Task ProposeAsync_StillRejectsAnArrayOfNonObjects()
     {
         var agent = CreateAgent("""["Karak House", "Orfali Bros"]""", """["Karak House", "Orfali Bros"]""");

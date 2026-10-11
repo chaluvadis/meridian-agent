@@ -59,23 +59,48 @@ public sealed class ContextAgent(
         TravelRequest request,
         CancellationToken cancellationToken = default)
     {
-        var prompt = PromptRenderer.Render(
-            Prompt,
-            new Dictionary<string, string>
-            {
-                ["UserProfileJson"] = JsonElementReader.Serialize(request.Profile),
-                ["UserQuery"] = request.Query,
-                ["CurrentLocation"] = request.Context?.Location ?? request.Profile.Destination,
-                ["LocalTime"] = request.Context?.LocalTime ?? "unknown",
-                ["WeatherSummary"] = request.Context?.WeatherSummary ?? "unknown",
-            });
+        // The profile is the one input a traveler cannot re-type mid-conversation, so a serialization
+        // failure here has to be visible with the exact exception rather than surfacing as the
+        // orchestrator's generic "trouble reading your preferences" fallback.
+        string prompt;
+        try
+        {
+            var profile = (request.Profile ?? UserProfile.Default).WithSafeLists();
+            var profileJson = JsonElementReader.Serialize(profile);
+
+            Logger.LogInformation(
+                "Profile serialized for the Context Agent: {Length} chars, model {Model}",
+                profileJson.Length,
+                Model);
+
+            prompt = PromptRenderer.Render(
+                Prompt,
+                new Dictionary<string, string>
+                {
+                    ["UserProfileJson"] = profileJson,
+                    ["UserQuery"] = request.Query,
+                    ["CurrentLocation"] = request.Context?.Location ?? profile.Destination,
+                    ["LocalTime"] = request.Context?.LocalTime ?? "unknown",
+                    ["WeatherSummary"] = request.Context?.WeatherSummary ?? "unknown",
+                });
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogError(
+                ex,
+                "Could not serialize the traveler profile (destination {Destination}) for the Context Agent",
+                request.Profile?.Destination);
+            throw new InvalidOperationException("the traveler profile could not be serialized for the context stage", ex);
+        }
 
         return RunJsonAsync(prompt, element =>
         {
             var outcome = ParseConstraints(element);
             if (outcome.IsSuccess)
             {
-                Logger.LogDebug("Context agent extracted: {Constraints}", JsonElementReader.Serialize(outcome.Value));
+                Logger.LogDebug(
+                    "Context agent extracted: {Constraints}",
+                    JsonElementReader.Serialize(outcome.Value));
             }
 
             return outcome;

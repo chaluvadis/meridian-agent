@@ -20,9 +20,16 @@ public static class Conversions
     };
 
     /// <summary>String lists become JSON arrays (values contain commas and ampersands).</summary>
+    /// <remarks>
+    /// <c>convertsNulls: true</c> matters: EF's default is to pass a null straight through to the
+    /// column without calling the conversion, which both writes an empty cell into a NOT NULL column
+    /// and skips the empty-array normalization. With it, a null list becomes "[]" on the way down
+    /// and an empty list on the way back up.
+    /// </remarks>
     public static ValueConverter<IReadOnlyList<string>, string> StringList { get; } = new(
-        value => JsonSerializer.Serialize(value, ListOptions),
-        value => ParseList(value));
+        value => WriteList(value),
+        value => ParseList(value),
+        convertsNulls: true);
 
     /// <summary>
     /// Tells EF how to compare two converted lists for change detection. Without it, saving a
@@ -38,7 +45,15 @@ public static class Conversions
         value => value.ToString(),
         value => ParseEnum<TEnum>(value));
 
-    private static IReadOnlyList<string> ParseList(string value)
+    /// <summary>
+    /// A null list is written as an empty JSON array, never as the four characters "null": the cell
+    /// stays valid JSON that SQL can read (`json_array_length`), and a reader that does not use the
+    /// converter still sees an empty list rather than a deserialization surprise.
+    /// </summary>
+    private static string WriteList(IReadOnlyList<string>? value) =>
+        JsonSerializer.Serialize(value ?? Array.Empty<string>(), ListOptions);
+
+    private static IReadOnlyList<string> ParseList(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -47,6 +62,8 @@ public static class Conversions
 
         try
         {
+            // "null" is what the converter used to write for a null list, so it is read back as the
+            // empty list it meant rather than rejected into the corrupt-cell path.
             return JsonSerializer.Deserialize<List<string>>(value, ListOptions) ?? new List<string>();
         }
         catch (JsonException)

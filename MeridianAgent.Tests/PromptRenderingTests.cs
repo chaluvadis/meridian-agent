@@ -150,6 +150,18 @@ public class PromptRenderingTests
     }
 
     [Fact]
+    public void Conversions_WriteAnEmptyJsonArrayRatherThanTheStringNull()
+    {
+        // A null list used to be stored as the four characters "null", which is not valid JSON for
+        // anything that reads the cell without this converter (including SQL json functions).
+        var stored = Assert.IsType<string>(Conversions.StringList.ConvertToProvider(null!));
+
+        Assert.Equal("[]", stored);
+        Assert.Empty(Assert.IsAssignableFrom<IEnumerable<string>>(Conversions.StringList.ConvertFromProvider(stored)));
+        Assert.Empty(Assert.IsAssignableFrom<IEnumerable<string>>(Conversions.StringList.ConvertFromProvider("null")));
+    }
+
+    [Fact]
     public void Conversions_StoreAnEnumByNameAndReadItBack()
     {
         var converter = Conversions.EnumByName<VenueType>();

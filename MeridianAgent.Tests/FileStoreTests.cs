@@ -69,6 +69,52 @@ public class FileStoreTests
     }
 
     [Fact]
+    public async Task UserProfileStore_ReadsAProfileWhoseListsAreExplicitNulls()
+    {
+        // An explicit null in JSON overrides the record's empty-list initializer, so the store is
+        // where that gets coalesced: a NullReferenceException in the pipeline's first stage would
+        // otherwise surface to the traveler as the agent going quiet.
+        var directory = Path.Combine(Path.GetTempPath(), "meridian-tests", Guid.NewGuid().ToString("n"));
+        var profilesDirectory = Path.Combine(directory, "profiles");
+        Directory.CreateDirectory(profilesDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(profilesDirectory, "default.json"),
+            """
+            {
+              "id": "default",
+              "display_name": "Aria",
+              "destination": "Dubai, UAE",
+              "core_interests": null,
+              "interests": null,
+              "hard_avoids": null,
+              "dietary_rules": null,
+              "avoid_list": null,
+              "dietary_restrictions": null,
+              "favorite_cuisines": null,
+              "dining_vibe": null,
+              "onboarding_completed": true
+            }
+            """);
+
+        var store = new JsonFileUserProfileStore(
+            Options.Create(Storage(directory)),
+            NullLogger<JsonFileUserProfileStore>.Instance);
+
+        var profile = await store.GetAsync("default");
+
+        Assert.NotNull(profile);
+        Assert.Empty(profile!.Interests);
+        Assert.Empty(profile.CoreInterests);
+        Assert.Empty(profile.HardAvoids);
+        Assert.Empty(profile.DietaryRules);
+        Assert.Empty(profile.AvoidList);
+        Assert.Empty(profile.DietaryRestrictions);
+        Assert.Empty(profile.FavoriteCuisines);
+        Assert.Empty(profile.DiningVibe);
+        Assert.Equal("Aria", profile.DisplayName);
+    }
+
+    [Fact]
     public async Task UserProfileStore_SaveAndReloadRoundTrips()
     {
         var directory = Path.Combine(Path.GetTempPath(), "meridian-tests", Guid.NewGuid().ToString("n"));

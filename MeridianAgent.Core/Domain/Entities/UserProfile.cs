@@ -110,6 +110,25 @@ public sealed record UserProfile
     public static UserProfile Default => new();
 
     /// <summary>
+    /// The same profile with every list guaranteed non-null. JSON (a hand-edited file, a row
+    /// migrated from an older schema, an explicit <c>null</c> in an onboarding payload) can leave
+    /// a list property null, and the first <c>.Count</c> on it becomes a NullReferenceException in
+    /// front of the traveler. Reads through the stores and the pipeline entry point normalize with
+    /// this, so downstream code can treat the lists as present.
+    /// </summary>
+    public UserProfile WithSafeLists() => this with
+    {
+        DietaryRules = DietaryRules ?? Array.Empty<string>(),
+        Interests = Interests ?? Array.Empty<string>(),
+        AvoidList = AvoidList ?? Array.Empty<string>(),
+        DietaryRestrictions = DietaryRestrictions ?? Array.Empty<string>(),
+        FavoriteCuisines = FavoriteCuisines ?? Array.Empty<string>(),
+        DiningVibe = DiningVibe ?? Array.Empty<string>(),
+        CoreInterests = CoreInterests ?? Array.Empty<string>(),
+        HardAvoids = HardAvoids ?? Array.Empty<string>(),
+    };
+
+    /// <summary>
     /// The place this traveler is right now: their home base if they named one, otherwise the
     /// destination they travelled for. One rule, so the app bar, the chat header and the pipeline
     /// can never disagree about which city they are in.

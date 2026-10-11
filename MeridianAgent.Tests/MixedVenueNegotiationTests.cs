@@ -222,6 +222,69 @@ public class MixedVenueVoiceTests
     }
 }
 
+/// <summary>
+/// A profile read from JSON, SQLite, or an API payload must never hand downstream code a null
+/// list: the first <c>.Count</c> on one is a NullReferenceException the traveler experiences as the
+/// agent going quiet.
+/// </summary>
+public class UserProfileNullSafetyTests
+{
+    [Fact]
+    public void WithSafeLists_ReplacesNullListsWithEmptyOnes()
+    {
+        var profile = UserProfile.Default with
+        {
+            Interests = null!,
+            CoreInterests = null!,
+            DietaryRules = null!,
+            AvoidList = null!,
+            DietaryRestrictions = null!,
+            FavoriteCuisines = null!,
+            DiningVibe = null!,
+            HardAvoids = null!,
+        };
+
+        var safe = profile.WithSafeLists();
+
+        Assert.Empty(safe.Interests);
+        Assert.Empty(safe.CoreInterests);
+        Assert.Empty(safe.DietaryRules);
+        Assert.Empty(safe.AvoidList);
+        Assert.Empty(safe.DietaryRestrictions);
+        Assert.Empty(safe.FavoriteCuisines);
+        Assert.Empty(safe.DiningVibe);
+        Assert.Empty(safe.HardAvoids);
+    }
+
+    [Fact]
+    public void WithSafeLists_KeepsValuesThatAreAlreadyThere()
+    {
+        var safe = TestData.Request().Profile.WithSafeLists();
+
+        Assert.Contains("vegetarian", safe.DietaryRules);
+        Assert.Equal(TestData.Request().Profile.DisplayName, safe.DisplayName);
+    }
+
+    [Fact]
+    public void WithSafeLists_IsIdempotent()
+    {
+        var once = UserProfile.Default.WithSafeLists().WithSafeLists();
+
+        Assert.Equal(once.WithSafeLists(), once);
+    }
+
+    [Fact]
+    public void TheWelcomeFallbackSurvivesAProfileWithNullLists()
+    {
+        // The onboarding path builds this greeting straight after the first pipeline call.
+        var fallback = (UserProfile.Default with { CoreInterests = null!, Interests = null! })
+            .WithSafeLists()
+            .BuildWelcomeFallback();
+
+        Assert.Contains("Welcome", fallback, StringComparison.OrdinalIgnoreCase);
+    }
+}
+
 /// <summary>A mixed venue is only shelter when it says what its sheltered part is.</summary>
 public class NearbyVenueShelterTests
 {

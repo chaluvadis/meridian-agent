@@ -37,6 +37,9 @@ public sealed class JsonFileUserProfileStore : IUserProfileStore
 
         if (profile is not null)
         {
+            // An explicit null in the JSON ("core_interests": null) overrides the record's empty-list
+            // initializer, so every list is coalesced here rather than at each reader.
+            profile = profile.WithSafeLists();
             _logger.LogInformation("Loaded profile {ProfileId} from {Path}", profileId, path);
         }
 
@@ -65,7 +68,7 @@ public sealed class JsonFileUserProfileStore : IUserProfileStore
             var profile = await JsonSerializer.DeserializeAsync<UserProfile>(stream, SerializerOptions, cancellationToken).ConfigureAwait(false);
             if (profile is not null)
             {
-                profiles.Add(profile);
+                profiles.Add(profile.WithSafeLists());
             }
         }
 

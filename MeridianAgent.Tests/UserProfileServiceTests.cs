@@ -147,6 +147,44 @@ public class UserProfileServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveProfileAsync_WritesAnEmptyJsonArrayForANullList()
+    {
+        // The converter used to write the four characters "null" into a list column, which is not
+        // valid JSON for a reader that does not use the converter and breaks JSON SQL against the row.
+        var service = CreateService();
+        await service.SaveProfileAsync(UserProfile.Default with
+        {
+            CoreInterests = null!,
+            Interests = null!,
+            HardAvoids = null!,
+        });
+
+        var stored = await ReadColumnAsync("core_interests_json");
+
+        Assert.Equal("[]", stored);
+    }
+
+    [Fact]
+    public async Task GetProfileAsync_ReadsALegacyRowWhoseListColumnsAreUnreadable()
+    {
+        // The columns are NOT NULL, so the shapes a legacy row can actually hold are the converter's
+        // old "null" string and a corrupted cell. Both must still load as a usable profile.
+        var service = CreateService();
+        await service.SaveProfileAsync(UserProfile.Default);
+        await WriteColumnsAsync(
+            ("core_interests_json", "null"),
+            ("interests_json", "{not json"));
+
+        var profile = await service.GetProfileAsync();
+
+        Assert.NotNull(profile);
+        Assert.Empty(profile!.CoreInterests);
+        Assert.Empty(profile.Interests);
+        Assert.Empty(profile.DietaryRestrictions);
+        Assert.Empty(profile.AvoidList);
+    }
+
+    [Fact]
     public async Task MarkWelcomeSeenAsync_ClearsOnlyTheFlag()
     {
         var service = CreateService();
@@ -233,6 +271,30 @@ public class UserProfileServiceTests : IDisposable
             .CreateDbContext();
 
         return await context.Profiles.CountAsync();
+    }
+
+    private async Task<string?> ReadColumnAsync(string column)
+    {
+        await using var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={_databasePath}");
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT {column} FROM Profiles LIMIT 1";
+        return await command.ExecuteScalarAsync() as string;
+    }
+
+    private async Task WriteColumnsAsync(params (string Column, object Value)[] columns)
+    {
+        await using var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={_databasePath}");
+        await connection.OpenAsync();
+
+        // Column names are compile-time constants from the test; the values are parameterized.
+        foreach (var (column, value) in columns)
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = $"UPDATE Profiles SET {column} = $value";
+            command.Parameters.AddWithValue("$value", value);
+            await command.ExecuteNonQueryAsync();
+        }
     }
 
     private static UserProfile CompletedProfile()

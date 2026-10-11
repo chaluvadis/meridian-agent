@@ -150,6 +150,11 @@ public sealed class TravelQueryOrchestrator
         Blackboard.Clear();
         Blackboard.PublishQuery(request.Query);
 
+        // The profile is normalized once, here, so every downstream agent and serializer sees
+        // present lists: a null list is the one defect that can turn a working pipeline into the
+        // generic "trouble reading your preferences" fallback.
+        request = request with { Profile = (request.Profile ?? UserProfile.Default).WithSafeLists() };
+
         _logger.LogInformation("Pipeline started: \"{Query}\" for {Destination}", request.Query, request.Profile.Destination);
 
         ExtractedConstraints? constraints = null;
@@ -163,13 +168,21 @@ public sealed class TravelQueryOrchestrator
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Context agent failed");
+            // AgentInvocationException already carries the last raw model response, so this single
+            // line is the whole diagnosis: the message, the stack, and what the model actually said.
+            _logger.LogError(
+                ex,
+                "Context agent failed; the Context stage could not read the traveler profile (destination {Destination})",
+                request.Profile.Destination);
         }
 
         if (constraints is null)
         {
+            // The profile stage is the one place a traveler cannot self-serve, so the message says
+            // what they can do about it. The technical detail stays in the log above.
+            _logger.LogWarning("Context agent returned no constraints; returning the profile hiccup fallback");
             return new PipelineStage(
-                "I'm having trouble reading your preferences right now. Please try that again in a moment.",
+                "I'm having a brief technical hiccup reading your profile. Could you try asking your question again, or visit the settings to update your preferences?",
                 null,
                 ProposedItinerary.Empty,
                 SafeguardReport.Cleared);

@@ -100,8 +100,31 @@ public class TravelQueryOrchestratorTests
 
         var response = await DrainAsync(orchestrator.StreamAsync(TestData.Request()));
 
-        Assert.Contains("reading your preferences", response);
+        // The traveler is told what they can do (ask again, visit settings) rather than being
+        // handed a technical apology with no next step.
+        Assert.Contains("technical hiccup reading your profile", response);
+        Assert.Contains("settings", response);
         Assert.Empty(synthesizer.Requests);
+    }
+
+    [Fact]
+    public async Task PrepareAsync_NormalizesTheProfileBeforeAnyAgentRuns()
+    {
+        // A null list is the one profile defect that used to surface as the generic fallback; the
+        // pipeline entry point now coalesces it so the agents and the serializers never see null.
+        var context = new FakeContextAgent();
+        var request = TestData.Request() with
+        {
+            Profile = UserProfile.Default with { Interests = null!, AvoidList = null! },
+        };
+
+        await DrainAsync(CreateOrchestrator(contextAgent: context).StreamAsync(request));
+
+        var profile = context.Requests[0].Profile;
+        Assert.NotNull(profile.Interests);
+        Assert.NotNull(profile.AvoidList);
+        Assert.Empty(profile.Interests);
+        Assert.Empty(profile.AvoidList);
     }
 
     [Fact]

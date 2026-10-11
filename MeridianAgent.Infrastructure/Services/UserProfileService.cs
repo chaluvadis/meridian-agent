@@ -27,14 +27,32 @@ public sealed class UserProfileService : IUserProfileService
         string profileId = IUserProfileService.DefaultProfileId,
         CancellationToken cancellationToken = default)
     {
+        _logger.LogInformation("Fetching profile {ProfileId} from SQLite", profileId);
+
         await using var context = await _contextFactory
             .CreateDbContextAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        return await context.Profiles
+        var stored = await context.Profiles
             .AsNoTracking()
             .FirstOrDefaultAsync(profile => profile.Id == profileId, cancellationToken)
             .ConfigureAwait(false);
+
+        if (stored is null)
+        {
+            _logger.LogWarning("No profile row for {ProfileId} in SQLite; callers get the default profile", profileId);
+            return null;
+        }
+
+        // The value converters already turn a NULL or corrupt cell into an empty list; this is the
+        // second net for anything the database did not produce.
+        _logger.LogInformation(
+            "Profile {ProfileId} loaded from SQLite (display name {DisplayName}, onboarding completed: {Completed})",
+            stored.Id,
+            stored.DisplayName,
+            stored.OnboardingCompleted);
+
+        return stored.WithSafeLists();
     }
 
     public async Task<UserProfile> GetOrCreateAsync(

@@ -7,19 +7,10 @@
    Reached from the settings icon in the app bar, never from a nav item. *@
 <div class="settings-page">
     <div class="settings-page-bar">
-        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
-                       Color="Color.Inherit"
-                       aria-label="Back to chat"
+        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Color="Color.Inherit" aria-label="Back to chat"
                        OnClick="GoBack" />
         <MudText Typo="Typo.h6" Class="settings-page-title">Your preferences</MudText>
     </div>
 
     <OnboardingWizard Mode="WizardMode.Edit" />
 </div>
-
-@code {
-    private void GoBack() => Navigation.NavigateTo("/");
-
-    protected override Task OnAfterRenderAsync(bool firstRender) =>
-        BrowserTitle.SetAsync(JSRuntime, firstRender, "Edit profile — The Meridian Agent");
-}

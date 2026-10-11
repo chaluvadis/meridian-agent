@@ -1,6 +1,3 @@
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
-
 namespace MeridianAgent.Tests;
 
 public class ProactiveSuggestionSchedulerTests

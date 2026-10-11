@@ -12,12 +12,9 @@ using Microsoft.JSInterop;
 /// the same silence: the JS may not be reachable yet, and a microphone prompt during prerender
 /// would be a permission request with no one to grant it.
 /// </summary>
-public sealed class SpeechInterop : IAsyncDisposable
+public sealed class SpeechInterop(IJSRuntime runtime) : IAsyncDisposable
 {
-    private readonly IJSRuntime _runtime;
     private DotNetObjectReference<SpeechInterop>? _self;
-
-    public SpeechInterop(IJSRuntime runtime) => _runtime = runtime;
 
     /// <summary>True while the microphone is open.</summary>
     public bool IsListening { get; private set; }
@@ -131,7 +128,7 @@ public sealed class SpeechInterop : IAsyncDisposable
     {
         try
         {
-            return await _runtime.InvokeAsync<T>(identifier, args ?? Array.Empty<object?>());
+            return await runtime.InvokeAsync<T>(identifier, args ?? Array.Empty<object?>());
         }
         catch (JSException)
         {
@@ -151,7 +148,7 @@ public sealed class SpeechInterop : IAsyncDisposable
     {
         try
         {
-            await _runtime.InvokeVoidAsync(identifier);
+            await runtime.InvokeVoidAsync(identifier);
         }
         catch (JSException)
         {

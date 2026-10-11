@@ -7,7 +7,4 @@
    chat once this wizard has been completed. *@
 <OnboardingWizard Mode="WizardMode.Onboarding" />
 
-@code {
-    protected override Task OnAfterRenderAsync(bool firstRender) =>
-        BrowserTitle.SetAsync(JSRuntime, firstRender, "Welcome — The Meridian Agent");
-}
+

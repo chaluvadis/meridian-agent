@@ -93,7 +93,7 @@ public sealed class WeatherPivotService
 
             if (_cooldown.IsOnCooldown(signature))
             {
-            _logger.LogDebug("The same weather conflict is still on cooldown");
+                _logger.LogDebug("The same weather conflict is still on cooldown");
                 return false;
             }
 

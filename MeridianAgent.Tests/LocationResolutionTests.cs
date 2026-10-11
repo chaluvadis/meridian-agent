@@ -605,3 +605,76 @@ public class TravelerPositionTests
     }
 }
 
+
+/// <summary>
+/// A base URL with a path in it is where relative resolution bites. Posting "interpreter" against
+/// ".../api" resolves to ".../interpreter" - the path segment is replaced, not extended - which
+/// answers the wrong endpoint and silently returns nothing. The URL is built absolutely now.
+/// </summary>
+public class OverpassUrlTests
+{
+    [Theory]
+    [InlineData("http://localhost/api", "http://localhost/api/interpreter")]
+    [InlineData("http://localhost/api/", "http://localhost/api/interpreter")]
+    [InlineData("https://overpass-api.de/api", "https://overpass-api.de/api/interpreter")]
+    [InlineData("http://overpass:80/api", "http://overpass:80/api/interpreter")]
+    public void TheInterpreterUrlKeepsWhateverPathTheBaseUrlHas(string baseUrl, string expected)
+    {
+        var source = new OverpassVenueSource(
+            new HttpClient(new NoopHandler()),
+            Microsoft.Extensions.Options.Options.Create(new OverpassOptions { BaseUrl = baseUrl }),
+            NullLogger<OverpassVenueSource>.Instance);
+
+        var url = (string)typeof(OverpassVenueSource)
+            .GetField("_interpreterUrl", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .GetValue(source)!;
+
+        Assert.Equal(expected, url);
+    }
+
+    [Fact]
+    public async Task TheRequestActuallyGoesToTheConfiguredPath()
+    {
+        // Caught only by watching the wire: the answer would still have parsed fine either way.
+        var handler = new RecordingHandler("""{"elements":[]}""");
+        var source = new OverpassVenueSource(
+            new HttpClient(handler) { BaseAddress = new Uri("http://localhost/api/") },
+            Microsoft.Extensions.Options.Options.Create(new OverpassOptions
+            {
+                BaseUrl = "http://localhost/api",
+            }),
+            NullLogger<OverpassVenueSource>.Instance);
+
+        await source.GetAroundAsync(new GeoPoint(25.2048, 55.2708));
+
+        Assert.Equal("http://localhost/api/interpreter", handler.RequestedUrl);
+    }
+
+    private sealed class RecordingHandler : HttpMessageHandler
+    {
+        private readonly string _body;
+
+        public RecordingHandler(string body) => _body = body;
+
+        public string? RequestedUrl { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            RequestedUrl = request.RequestUri!.ToString();
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent(_body),
+            });
+        }
+    }
+
+    private sealed class NoopHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("No request is expected when the URL is only being read");
+    }
+}

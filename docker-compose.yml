@@ -20,7 +20,7 @@ services:
       - Nominatim__BaseUrl=https://nominatim.openstreetmap.org
       # Routing and venue lookup are separate services so each can be swapped for a local one.
       - Osrm__BaseUrl=http://osrm:5000
-      - Overpass__BaseUrl=https://overpass-api.de/api
+      - Overpass__BaseUrl=http://overpass:80/api
       - Storage__DataDirectory=/app/samples
     volumes:
       - ./samples:/app/samples
@@ -53,11 +53,45 @@ services:
   osrm:
     image: osrm/osrm-backend:latest
     container_name: meridian-osrm
-    command: ["/bin/sh", "-c", "osrm-extract -p /opt/car.lua /data/dubai.osm.pbf && osrm-routed /data/dubai.osrm"]
+    # The router needs an extract to work from, so the first start fetches the UAE region from
+    # Geofabrik and builds the graph into the volume. Later starts reuse it and skip the download
+    # and the extract. Point OSRM_REGION_URL at a smaller area if the graph is more than you need.
+    environment:
+      - OSRM_REGION_URL=https://download.geofabrik.de/asia/united-arab-emirates-latest.osm.pbf
+    command:
+      - /bin/sh
+      - -c
+      - |
+        if [ ! -f /data/region.osm.pbf ]; then
+          echo 'Fetching the region extract for routing…';
+          curl -sSL "$$OSRM_REGION_URL" -o /data/region.osm.pbf;
+        fi
+        osrm-extract -p /opt/car.lua /data/region.osm.pbf &&
+        osrm-partition /data/region.osrm &&
+        osrm-customize /data/region.osrm &&
+        osrm-routed /data/region.osrm
     expose:
       - "5000"
     volumes:
       - osrm-data:/data
+    restart: unless-stopped
+
+  # Overpass: the venues that are actually around the traveler, straight from OpenStreetMap. It
+  # answers the one query the app makes - places with a name within a radius - and nothing is
+  # proxied through a public instance, so rate limits stop being somebody else's problem.
+  overpass:
+    image: wiktorn/overpass-api:latest
+    container_name: meridian-overpass
+    environment:
+      # First start downloads the region and builds the database, which takes minutes rather than
+      # seconds and needs internet. It happens once; the volume keeps it after that.
+      - OVERPASS_MODE=init
+      - OVERPASS_META=no
+      - OVERPASS_PLANET_URL=https://download.geofabrik.de/asia/united-arab-emirates-latest.osm.pbf
+    expose:
+      - "80"
+    volumes:
+      - overpass-db:/db
     restart: unless-stopped
 
   qdrant:
@@ -98,3 +132,7 @@ volumes:
   ollama-models:
   qdrant-data:
   meridian-data:
+  # OSRM routing graph, extracted once from the region and reused.
+  osrm-data:
+  # Overpass database, built once from the region extract.
+  overpass-db:

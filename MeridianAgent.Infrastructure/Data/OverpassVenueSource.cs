@@ -39,8 +39,14 @@ public sealed class OverpassVenueSource : ILiveVenueSource
         _httpClient = httpClient;
         _options = options.Value;
         _logger = logger;
-        _httpClient.BaseAddress ??= new Uri(_options.BaseUrl.TrimEnd('/'));
+
+        // Built as an absolute URL on purpose. A relative "interpreter" against a base of
+        // .../api would resolve to .../interpreter, because a base without a trailing slash has
+        // its last segment replaced rather than extended.
+        _interpreterUrl = $"{_options.BaseUrl.TrimEnd('/')}/interpreter";
     }
+
+    private readonly string _interpreterUrl;
 
     /// <summary>Whether this source has been asked to answer at all.</summary>
     public bool IsEnabled => _options.Enabled;
@@ -105,7 +111,7 @@ public sealed class OverpassVenueSource : ILiveVenueSource
         });
 
         using var response = await _httpClient
-            .PostAsync("interpreter", content, cancellationToken)
+            .PostAsync(_interpreterUrl, content, cancellationToken)
             .ConfigureAwait(false);
 
         var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);

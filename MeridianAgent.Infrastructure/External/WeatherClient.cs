@@ -1,5 +1,7 @@
 namespace MeridianAgent.Infrastructure.External;
 
+using MeridianAgent.Domain.Entities;
+
 /// <summary>OpenWeatherMap current weather (env: Weather__ApiKey).</summary>
 public sealed class WeatherClient
 {

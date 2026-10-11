@@ -67,7 +67,7 @@ public sealed class WeatherPivotService
                 ?? UserProfile.Default;
 
             var location = profile.EffectiveLocation;
-            var context = await ReadContextAsync(contextProvider, location, cancellationToken).ConfigureAwait(false);
+            var context = await ReadContextAsync(contextProvider, location, profile.Coordinates, cancellationToken).ConfigureAwait(false);
 
             if (context is null || !Severity.Of(context.WeatherCondition, context.IsRaining, context.TemperatureC).IsSevere)
             {
@@ -84,7 +84,7 @@ public sealed class WeatherPivotService
                 return false;
             }
 
-            var indoor = await IndoorShelterAsync(nearbyStore, location, outdoor, cancellationToken).ConfigureAwait(false);
+            var indoor = await IndoorShelterAsync(nearbyStore, location, profile.Coordinates, outdoor, cancellationToken).ConfigureAwait(false);
 
             var signature = string.Join(
                 '|',
@@ -144,11 +144,12 @@ public sealed class WeatherPivotService
     private async Task<TravelContext?> ReadContextAsync(
         ITravelContextProvider contextProvider,
         string location,
+        GeoPoint? at,
         CancellationToken cancellationToken)
     {
         try
         {
-            return await contextProvider.GetCurrentAsync(location, cancellationToken).ConfigureAwait(false);
+            return await contextProvider.GetCurrentAsync(location, at, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -192,10 +193,11 @@ public sealed class WeatherPivotService
     private static async Task<List<string>> IndoorShelterAsync(
         INearbyVenueStore nearbyStore,
         string location,
+        GeoPoint? at,
         List<OutdoorSave> outdoor,
         CancellationToken cancellationToken)
     {
-        var nearby = await nearbyStore.GetAsync(location, cancellationToken).ConfigureAwait(false);
+        var nearby = await nearbyStore.GetAsync(location, at, cancellationToken).ConfigureAwait(false);
 
         var shelter = nearby
             .Where(venue => venue.IsIndoor)

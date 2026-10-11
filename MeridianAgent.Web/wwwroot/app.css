@@ -1955,3 +1955,26 @@ html, body {
         border-color: var(--ink-strong);
         color: var(--gold);
     }
+
+/* The opt-in locate button: gold rather than navy, because it is the one thing the traveler is
+   being asked to trust the app with */
+
+.app-bar-icon-busy {
+    color: var(--ink-faint);
+    cursor: progress;
+    opacity: 0.7;
+}
+
+@keyframes app-bar-icon-breathe {
+    0%, 100% {
+        color: var(--ink-muted);
+    }
+
+    50% {
+        color: var(--gold);
+    }
+}
+
+.app-bar-icon-busy:not(:disabled) {
+    animation: app-bar-icon-breathe 1.6s ease-in-out infinite;
+}

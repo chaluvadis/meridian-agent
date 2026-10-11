@@ -174,7 +174,47 @@ public interface IRulebookStore
 
 public interface INearbyVenueStore
 {
-    Task<IReadOnlyList<NearbyVenue>> GetAsync(string location, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Venues near a place. When <paramref name="at"/> is supplied it is used as the centre rather
+    /// than the name, so an implementation with real venue data can answer for the actual position.
+    /// </summary>
+    Task<IReadOnlyList<NearbyVenue>> GetAsync(
+        string location,
+        GeoPoint? at = null,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// A live source of the venues around a position, as opposed to a sample list keyed by place name.
+/// </summary>
+public interface ILiveVenueSource
+{
+    /// <summary>Whether this source has been asked to answer at all.</summary>
+    bool IsEnabled { get; }
+
+    /// <summary>
+    /// Venues really around a position, nearest first, or empty when there are none. Empty is a
+    /// normal answer the caller falls back from, never an error.
+    /// </summary>
+    Task<IReadOnlyList<NearbyVenue>> GetAroundAsync(
+        GeoPoint centre,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// How long it takes to get from one position to another, from a routing service rather than from a
+/// number somebody wrote in a data file.
+/// </summary>
+public interface ITravelTimeProvider
+{
+    /// <summary>Whether this provider is configured and worth calling.</summary>
+    bool IsConfigured { get; }
+
+    /// <summary>
+    /// Driving minutes between two positions, or null when the service is unreachable, the route is
+    /// impossible (across water, off-road), or either end has no coordinates.
+    /// </summary>
+    Task<int?> MinutesAsync(GeoPoint from, GeoPoint to, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -193,5 +233,13 @@ public interface IRulebookNarrower
 /// <summary>Provides the live travel context (location, local time, weather) for the traveler.</summary>
 public interface ITravelContextProvider
 {
-    Task<TravelContext> GetCurrentAsync(string location, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// The live reality at a place. When <paramref name="at"/> is supplied it is used as the
+    /// position directly, so the weather describes where the traveler is standing rather than the
+    /// centre of the city they typed.
+    /// </summary>
+    Task<TravelContext> GetCurrentAsync(
+        string location,
+        GeoPoint? at = null,
+        CancellationToken cancellationToken = default);
 }

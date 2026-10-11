@@ -126,14 +126,14 @@ public sealed class ProactiveSuggestionScheduler : BackgroundService
         TravelContext? context = null;
         try
         {
-            context = await contextProvider.GetCurrentAsync(location, cancellationToken).ConfigureAwait(false);
+            context = await contextProvider.GetCurrentAsync(location, profile.Coordinates, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Could not load live context for proactive suggestions; using profile destination");
         }
 
-        var nearby = await nearbyStore.GetAsync(context?.Location ?? location, cancellationToken).ConfigureAwait(false);
+        var nearby = await nearbyStore.GetAsync(context?.Location ?? location, profile.Coordinates, cancellationToken).ConfigureAwait(false);
         var rulebook = await rulebookStore.GetAsync(profile.Destination, cancellationToken).ConfigureAwait(false)
                        ?? DestinationRulebook.Empty;
 

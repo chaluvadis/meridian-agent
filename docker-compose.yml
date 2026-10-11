@@ -7,7 +7,7 @@ services:
     ports:
       - "${WEB_PORT:-8080}:8080"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_ENVIRONMENT=Production # Changed to Production for Coolify
       - ASPNETCORE_URLS=http://+:8080
       - Ollama__BaseUrl=http://ollama:11434
       - Ollama__RequestTimeoutSeconds=300
@@ -18,18 +18,21 @@ services:
       - Weather__BaseUrl=https://api.openweathermap.org
       - Weather__ApiKey=${WEATHER_API_KEY:-}
       - Nominatim__BaseUrl=https://nominatim.openstreetmap.org
-      - Osrm__BaseUrl=https://router.project-osrm.org
+      # Routing and venue lookup are separate services so each can be swapped for a local one.
+      - Osrm__BaseUrl=http://osrm:5000
+      - Overpass__BaseUrl=https://overpass-api.de/api
       - Storage__DataDirectory=/app/samples
     volumes:
       - ./samples:/app/samples
-      # Traveler profiles live in SQLite; a named volume keeps them across container rebuilds.
-      - meridian-data:/app/data
+      - meridian-data:/app/data # Persists SQLite DB
     depends_on:
       ollama:
         condition: service_started
       qdrant:
         condition: service_started
     healthcheck:
+      # Note: Ensure your Dockerfile installs 'curl' in the runtime stage, 
+      # or change this to: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
       interval: 30s
       timeout: 5s
@@ -40,17 +43,21 @@ services:
   ollama:
     image: ollama/ollama:latest
     container_name: meridian-ollama
-    # Reached by meridian-web at http://ollama:11434 over the compose network only.
-    # Not bound to the host: a locally installed Ollama almost always owns 11434 already
-    # ("Bind for 0.0.0.0:11434 failed: port is already allocated"). To also reach this
-    # container's Ollama from the host (e.g. the `ollama` CLI), uncomment the mapping
-    # below and pick a free host port such as 11435.
     expose:
       - "11434"
-    # ports:
-    #   - "11435:11434"
     volumes:
-      - ollama-models:/root/.ollama
+      - ollama-models:/root/.ollama # This is where models MUST be saved
+    restart: unless-stopped
+
+  # OSRM routing: driving minutes between two positions, rather than a distance somebody asserted.
+  osrm:
+    image: osrm/osrm-backend:latest
+    container_name: meridian-osrm
+    command: ["/bin/sh", "-c", "osrm-extract -p /opt/car.lua /data/dubai.osm.pbf && osrm-routed /data/dubai.osrm"]
+    expose:
+      - "5000"
+    volumes:
+      - osrm-data:/data
     restart: unless-stopped
 
   qdrant:
@@ -63,26 +70,31 @@ services:
       - qdrant-data:/qdrant/storage
     restart: unless-stopped
 
-  ollama-models:
+  # Helper service to pre-pull models on first deployment
+  ollama-models-puller:
     image: ollama/ollama:latest
-    container_name: meridian-ollama-models
+    container_name: meridian-ollama-puller
     depends_on:
-      - ollama
+      ollama:
+        condition: service_started
+    volumes:
+      - ollama-models:/root/.ollama # CRITICAL FIX: Must share the same volume as the main ollama service!
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
+        echo 'Waiting for Ollama to be ready...';
+        sleep 10; # Give the main ollama service time to fully boot
         echo 'Pulling models for The Meridian Agent…';
         ollama pull qwen2.5:1.5b &&
         ollama pull qwen2.5:3b &&
         ollama pull llama3.1:8b &&
         ollama pull nomic-embed-text;
-        echo 'Model pull finished.';
+        echo 'Model pull finished. This container will now exit.';
     environment:
       - OLLAMA_HOST=http://ollama:11434
-    restart: "no"
+    restart: "no" # Runs once and exits
 
 volumes:
   ollama-models:
   qdrant-data:
-  # SQLite profile database for meridian-web.
   meridian-data:

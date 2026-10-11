@@ -47,6 +47,16 @@ public sealed record UserProfile
     [JsonPropertyName("home_base")]
     public string? HomeBase { get; init; }
 
+    /// <summary>
+    /// Where the traveler actually is, when they have let the app find out. Nullable because it is
+    /// opt-in: until they press the button, the app only knows the city they typed.
+    /// </summary>
+    [JsonPropertyName("latitude")]
+    public double? Latitude { get; init; }
+
+    [JsonPropertyName("longitude")]
+    public double? Longitude { get; init; }
+
     // ---- Preferences captured by the onboarding wizard -------------------------------
     // Kept exactly as the traveler picked them; mapped onto the agent-facing fields above.
 
@@ -106,6 +116,22 @@ public sealed record UserProfile
     /// </summary>
     public string EffectiveLocation =>
         string.IsNullOrWhiteSpace(HomeBase) ? Destination : HomeBase!;
+
+    /// <summary>
+    /// The traveler's opt-in position, or null. Anything that can be measured — distance, driving
+    /// time, the weather where they are standing rather than where the city centre is — reads this
+    /// first and falls back to the name of the city when it is absent.
+    /// </summary>
+    [JsonIgnore]
+    public GeoPoint? Coordinates =>
+        Latitude is null || Longitude is null ? null : new GeoPoint(Latitude.Value, Longitude.Value);
+
+    /// <summary>
+    /// This profile's position, or null when they have not shared one. Kept separate from
+    /// <see cref="Coordinates"/> so a caller can tell "no position known" from a placeholder.
+    /// </summary>
+    [JsonIgnore]
+    public bool HasCoordinates => Coordinates is not null;
 
     /// <summary>
     /// Local, model-free greeting for the first chat after onboarding — used when the Synthesizer

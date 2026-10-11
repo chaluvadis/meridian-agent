@@ -26,4 +26,18 @@ public sealed record NearbyVenue
 
     [JsonPropertyName("longitude")]
     public double? Longitude { get; init; }
+
+    /// <summary>Whether this venue can be measured against a position at all.</summary>
+    [JsonIgnore]
+    public bool HasCoordinates => Latitude is not null && Longitude is not null;
+
+    /// <summary>This venue's position, or null when it was never given one.</summary>
+    [JsonIgnore]
+    public GeoPoint? At => HasCoordinates ? new GeoPoint(Latitude!.Value, Longitude!.Value) : null;
+
+    /// <summary>
+    /// Straight-line distance from a position, in kilometres, or null when either side has none.
+    /// Kilometres rather than minutes: a straight line does not know about traffic.
+    /// </summary>
+    public double? DistanceKmFrom(GeoPoint from) => At?.DistanceKmTo(from);
 }

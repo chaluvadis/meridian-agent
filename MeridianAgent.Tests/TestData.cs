@@ -501,8 +501,17 @@ public sealed class StubNearbyVenueStore : INearbyVenueStore
 {
     public IReadOnlyList<NearbyVenue> Venues { get; set; } = TestData.NearbyVenues;
 
-    public Task<IReadOnlyList<NearbyVenue>> GetAsync(string location, CancellationToken cancellationToken = default) =>
-        Task.FromResult(Venues);
+    /// <summary>Where the traveler said they were, when they said it.</summary>
+    public GeoPoint? LastPosition { get; private set; }
+
+    public Task<IReadOnlyList<NearbyVenue>> GetAsync(
+        string location,
+        GeoPoint? at = null,
+        CancellationToken cancellationToken = default)
+    {
+        LastPosition = at;
+        return Task.FromResult(Venues);
+    }
 }
 
 public sealed class StubTravelContextProvider : ITravelContextProvider
@@ -511,8 +520,15 @@ public sealed class StubTravelContextProvider : ITravelContextProvider
 
     public Exception? Error { get; set; }
 
-    public Task<TravelContext> GetCurrentAsync(string location, CancellationToken cancellationToken = default)
+    /// <summary>Where the traveler said they were, when they said it.</summary>
+    public GeoPoint? LastPosition { get; private set; }
+
+    public Task<TravelContext> GetCurrentAsync(
+        string location,
+        GeoPoint? at = null,
+        CancellationToken cancellationToken = default)
     {
+        LastPosition = at;
         if (Error is not null)
         {
             throw Error;

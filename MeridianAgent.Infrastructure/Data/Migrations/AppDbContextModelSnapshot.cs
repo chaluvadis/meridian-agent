@@ -15,7 +15,7 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261011045724_ChatHistory";
+    public override string LastMigrationId => "20261011093720_TravelerPosition";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -188,6 +188,14 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
                     .HasColumnType("TEXT")
                     .HasColumnName("interests_json")
                     .HasJsonPropertyName("interests");
+
+                b.Property<double?>("Latitude")
+                    .HasColumnType("REAL")
+                    .HasJsonPropertyName("latitude");
+
+                b.Property<double?>("Longitude")
+                    .HasColumnType("REAL")
+                    .HasJsonPropertyName("longitude");
 
                 b.Property<string>("Mobility")
                     .IsRequired()

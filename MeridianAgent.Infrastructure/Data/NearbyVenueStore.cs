@@ -20,7 +20,16 @@ public sealed class JsonFileNearbyVenueStore : INearbyVenueStore
         _logger = logger;
     }
 
-    public async Task<IReadOnlyList<NearbyVenue>> GetAsync(string location, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<NearbyVenue>> GetAsync(
+        string location,
+        Domain.Entities.GeoPoint? at = null,
+        CancellationToken cancellationToken = default)
+    {
+        // The file-backed list is keyed by place name; a position is not a name it can look up.
+        return GetByNameAsync(location, cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<NearbyVenue>> GetByNameAsync(string location, CancellationToken cancellationToken)
     {
         foreach (var candidate in CandidatePaths(location))
         {

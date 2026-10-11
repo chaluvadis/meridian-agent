@@ -1,7 +1,6 @@
 namespace MeridianAgent.Infrastructure.External;
 
-/// <summary>A latitude/longitude pair on the globe.</summary>
-public sealed record GeoPoint(double Latitude, double Longitude);
+using MeridianAgent.Domain.Entities;
 
 /// <summary>OpenStreetMap Nominatim geocoding (no API key required; be respectful with request rate).</summary>
 public sealed class NominatimClient

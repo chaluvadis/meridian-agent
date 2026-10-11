@@ -20,4 +20,24 @@ public sealed record TravelContext
 
     [JsonPropertyName("weather_summary")]
     public string WeatherSummary { get; init; } = string.Empty;
+
+    /// <summary>
+    /// The coordinates this reading was taken at, when the position was actually resolved. Null
+    /// means only the city name was known, which is enough for weather but not for anything that
+    /// needs to be nearby.
+    /// </summary>
+    [JsonIgnore]
+    public GeoPoint? At => Latitude is null || Longitude is null
+        ? null
+        : new GeoPoint(Latitude.Value, Longitude.Value);
+
+    /// <summary>
+    /// The position the geocoder resolved, stored as two nullable columns so the JSON the sample
+    /// context is read from stays readable without them.
+    /// </summary>
+    [JsonPropertyName("latitude")]
+    public double? Latitude { get; init; }
+
+    [JsonPropertyName("longitude")]
+    public double? Longitude { get; init; }
 }

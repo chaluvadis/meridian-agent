@@ -2,6 +2,7 @@
 @using MeridianAgent.Web.Components.Theme
 @inject NavigationManager Navigation
 @inject IUserProfileService ProfileService
+@inject GeolocationInterop Geolocation
 
 @*
     The whole app is the chat, so the shell is deliberately thin: one top app bar that names the
@@ -37,6 +38,20 @@
                     <MudIcon Icon="@Icons.Material.Filled.History" Size="Size.Small" />
                 </button>
 
+                @* The one thing that measures rather than infers. Shown until a position is known,
+                   because a traveler who has shared one has no reason to be asked again. *@
+                @if (!_hasPosition)
+                {
+                    <button class="app-bar-icon @(_locating ? "app-bar-icon-busy" : null)"
+                            aria-label="Use my current location"
+                            title="Find me. Answers where, not just which city."
+                            disabled="@_locating"
+                            @onclick="LocateAsync">
+                        <MudIcon Icon="@(_locating ? Icons.Material.Filled.HourglassTop : Icons.Material.Filled.MyLocation)"
+                                 Size="Size.Small" />
+                    </button>
+                }
+
                 <button class="app-bar-icon"
                         aria-label="Edit traveler profile"
                         title="Edit traveler profile"
@@ -65,6 +80,8 @@
 @code {
     private string _location = string.Empty;
     private bool _showGlance;
+    private bool _locating;
+    private bool _hasPosition;
 
     protected override async Task OnInitializedAsync()
     {
@@ -75,6 +92,7 @@
             // The bar shows where the traveler is, resolved by the same single rule the chat
             // header and the pipeline use so they cannot drift apart.
             _location = profile?.EffectiveLocation ?? string.Empty;
+            _hasPosition = profile?.HasCoordinates ?? false;
         }
         catch (Exception)
         {
@@ -85,4 +103,48 @@
     private void GoToProfileEdit() => Navigation.NavigateTo("/profile/edit");
 
     private void OpenGlance() => _showGlance = true;
+
+    /// <summary>
+    /// Finds out where the traveler is and remembers it. Stays on the prompt for a refusal or a
+    /// timeout rather than hiding it, so a traveler who dismissed the browser box by accident can
+    /// try again without a reload.
+    /// </summary>
+    private async Task LocateAsync()
+    {
+        if (_locating)
+        {
+            return;
+        }
+
+        _locating = true;
+
+        try
+        {
+            var position = await Geolocation.GetPositionAsync();
+            var profile = await ProfileService.GetProfileAsync(IUserProfileService.DefaultProfileId);
+
+            if (position is null || profile is null)
+            {
+                return;
+            }
+
+            var located = profile with
+            {
+                Latitude = position.Latitude,
+                Longitude = position.Longitude,
+            };
+
+            await ProfileService.SaveProfileAsync(located);
+
+            _hasPosition = located.HasCoordinates;
+        }
+        catch (Exception)
+        {
+            // A refusal or a failed save leaves the app exactly as it was: still the city they typed.
+        }
+        finally
+        {
+            _locating = false;
+        }
+    }
 }

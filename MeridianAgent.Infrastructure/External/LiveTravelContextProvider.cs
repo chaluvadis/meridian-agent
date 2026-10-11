@@ -40,8 +40,17 @@ public sealed class LiveTravelContextProvider(
     /// <summary>Refreshes currently in flight, keyed the same way, so callers share one round trip.</summary>
     private readonly Dictionary<string, Task<TravelContext>> _refreshing = new(StringComparer.OrdinalIgnoreCase);
 
-    public async Task<TravelContext> GetCurrentAsync(string location, CancellationToken cancellationToken = default)
+    public async Task<TravelContext> GetCurrentAsync(
+        string location,
+        Domain.Entities.GeoPoint? at = null,
+        CancellationToken cancellationToken = default)
     {
+        // A position the traveler shared beats a city name: they are standing in it.
+        if (at is not null && at.IsPlausible)
+        {
+            return await FromPositionAsync(location, at, cancellationToken).ConfigureAwait(false);
+        }
+
         if (string.IsNullOrWhiteSpace(location))
         {
             return await LoadSampleAsync(cancellationToken).ConfigureAwait(false);
@@ -83,6 +92,78 @@ public sealed class LiveTravelContextProvider(
     }
 
     /// <summary>
+    /// Weather for a position the traveler already shared. No geocoding: the coordinates are the
+    /// point, and the city name is only what the reading gets labelled with.
+    /// </summary>
+    private async Task<TravelContext> FromPositionAsync(
+        string location,
+        Domain.Entities.GeoPoint at,
+        CancellationToken cancellationToken)
+    {
+        var key = Key(at);
+
+        lock (_cache)
+        {
+            if (_cache.TryGetValue(key, out var cached) && IsFresh(cached))
+            {
+                return cached.Context;
+            }
+        }
+
+        return await RefreshAtPositionAsync(location, at, key, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static string Key(Domain.Entities.GeoPoint at) =>
+        $"{at.Latitude.ToString("F3", CultureInfo.InvariantCulture)}," +
+        $"{at.Longitude.ToString("F3", CultureInfo.InvariantCulture)}";
+
+    /// <summary>
+    /// Calls the weather service for a known position and caches the result. Falls back to the
+    /// sample context when the service cannot answer, the same way a geocoded city would.
+    /// </summary>
+    private async Task<TravelContext> RefreshAtPositionAsync(
+        string location,
+        Domain.Entities.GeoPoint at,
+        string key,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var weather = await _weather.GetCurrentAsync(at, cancellationToken).ConfigureAwait(false);
+
+            if (weather is not null)
+            {
+                var localTime = DateTimeOffset
+                    .UtcNow
+                    .ToOffset(TimeSpan.FromSeconds(weather.TimezoneOffsetSeconds))
+                    .ToString("HH:mm", CultureInfo.InvariantCulture);
+
+                var resolved = new TravelContext
+                {
+                    Location = location,
+                    LocalTime = localTime,
+                    TemperatureC = weather.TemperatureC,
+                    WeatherCondition = weather.Condition,
+                    IsRaining = weather.IsRaining,
+                    WeatherSummary = $"{weather.Description}, {weather.TemperatureC.ToString("0", CultureInfo.InvariantCulture)}°C",
+                    Latitude = at.Latitude,
+                    Longitude = at.Longitude,
+                };
+
+                return StoreInCache(key, resolved);
+            }
+
+            _logger.LogInformation("Live weather unavailable at the traveler's position; using the sample context");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not read weather at the traveler's position; using the sample context");
+        }
+
+        return StoreInCache(key, await LoadSampleAsync(cancellationToken).ConfigureAwait(false));
+    }
+
+    /// <summary>
     /// Calls the weather services and caches the result, fallback included. Never throws, so every
     /// caller awaiting it sees the same answer rather than one failing on the caller's behalf.
     /// </summary>
@@ -112,6 +193,9 @@ public sealed class LiveTravelContextProvider(
                     WeatherCondition = weather.Condition,
                     IsRaining = weather.IsRaining,
                     WeatherSummary = $"{weather.Description}, {weather.TemperatureC.ToString("0", CultureInfo.InvariantCulture)}°C",
+                    // The point is kept from here on: it is what makes distance measurable.
+                    Latitude = point.Latitude,
+                    Longitude = point.Longitude,
                 };
 
                 return StoreInCache(key, resolved);

@@ -840,9 +840,13 @@
     private async Task<TravelRequest> BuildRequestAsync(string query)
     {
         var location = _profile.EffectiveLocation;
-        var context = await ContextProvider.GetCurrentAsync(location);
 
-        var nearby = await NearbyVenueStore.GetAsync(context.Location);
+        // The position wins over the city name when there is one: it makes the weather describe
+        // where they are standing and the venue list the places actually around them.
+        var at = _profile.Coordinates;
+        var context = await ContextProvider.GetCurrentAsync(location, at);
+
+        var nearby = await NearbyVenueStore.GetAsync(context.Location, at);
         var rulebook = _rulebook ?? await RulebookStore.GetAsync(_profile.Destination) ?? new DestinationRulebook
         {
             Destination = _profile.Destination,

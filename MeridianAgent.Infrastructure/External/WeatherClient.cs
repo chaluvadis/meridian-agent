@@ -13,8 +13,13 @@ public sealed class WeatherClient
         _httpClient.BaseAddress ??= new Uri(_options.BaseUrl.TrimEnd('/'));
     }
 
+    /// <summary>False until an OpenWeatherMap key is configured; the app then runs on the sample context.</summary>
     public bool IsConfigured => !string.IsNullOrWhiteSpace(_options.ApiKey);
 
+    /// <summary>
+    /// Current weather at a point, or null when no key is configured, the request fails, or the
+    /// payload carries neither a temperature nor a condition.
+    /// </summary>
     public async Task<WeatherReading?> GetCurrentAsync(
         GeoPoint point,
         CancellationToken cancellationToken = default)
@@ -54,6 +59,7 @@ public sealed class WeatherClient
             payload.Timezone);
     }
 
+    /// <summary>What the weather service said about one moment at one place.</summary>
     public sealed record WeatherReading(
         double TemperatureC,
         string Condition,

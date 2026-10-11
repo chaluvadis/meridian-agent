@@ -9,7 +9,6 @@ builder.Services.Configure<OllamaOptions>(builder.Configuration.GetSection(Ollam
 builder.Services.Configure<QdrantOptions>(builder.Configuration.GetSection(QdrantOptions.SectionName));
 builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection(StorageOptions.SectionName));
 builder.Services.Configure<NominatimOptions>(builder.Configuration.GetSection(NominatimOptions.SectionName));
-builder.Services.Configure<OsrmOptions>(builder.Configuration.GetSection(OsrmOptions.SectionName));
 builder.Services.Configure<WeatherOptions>(builder.Configuration.GetSection(WeatherOptions.SectionName));
 builder.Services.Configure<ProactiveSuggestionsOptions>(builder.Configuration.GetSection(ProactiveSuggestionsOptions.SectionName));
 builder.Services.AddRazorComponents()
@@ -30,7 +29,6 @@ builder.Services
 // Qdrant vector store + external map/weather APIs.
 builder.Services.AddHttpClient<QdrantClient>();
 builder.Services.AddHttpClient<NominatimClient>();
-builder.Services.AddHttpClient<OsrmClient>();
 builder.Services.AddHttpClient<WeatherClient>();
 builder.Services.AddSingleton<ITravelContextProvider, LiveTravelContextProvider>();
 // Legacy JSON profiles: read-only now, used to seed SQLite on first run.

@@ -158,7 +158,7 @@ public class ChatHistoryServiceTests : IDisposable
         var service = CreateService();
         var yesterday = await SeedSessionAsync(Today.AddDays(-1));
 
-        var saved =         await service.SaveMessageAsync(
+        var saved = await service.SaveMessageAsync(
             Message("user", "We just landed", At(9, 0), yesterday));
 
         var today = await service.GetCurrentSessionAsync();

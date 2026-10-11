@@ -1,5 +1,6 @@
 namespace MeridianAgent.Infrastructure.External;
 
+/// <summary>A latitude/longitude pair on the globe.</summary>
 public sealed record GeoPoint(double Latitude, double Longitude);
 
 /// <summary>OpenStreetMap Nominatim geocoding (no API key required; be respectful with request rate).</summary>
@@ -16,6 +17,10 @@ public sealed class NominatimClient
         _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("MeridianAgent/1.0 (travel concierge)");
     }
 
+    /// <summary>
+    /// Turns a place name into coordinates, or null when the name is blank, the request fails, or
+    /// the answer carries no usable position.
+    /// </summary>
     public async Task<GeoPoint?> GeocodeAsync(string query, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(query))

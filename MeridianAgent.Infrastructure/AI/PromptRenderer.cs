@@ -23,6 +23,10 @@ public static class PromptRenderer
 /// <summary>Tolerant parsing helpers for the (sometimes sloppy) JSON small language models emit.</summary>
 public static class EnumParse
 {
+    /// <summary>
+    /// Parses an enum from raw model text, ignoring anything that is not a letter, and rejects
+    /// values that are not defined. Returns false rather than throwing on unreadable input.
+    /// </summary>
     public static bool TryParseEnum<T>(string? raw, out T value)
         where T : struct, Enum
     {
@@ -42,10 +46,13 @@ public static class EnumParse
 /// <summary>Result of one agent attempt: a parsed value, or the validation errors explaining the retry.</summary>
 public sealed record ParseOutcome<T>(T? Value, IReadOnlyList<string> Errors)
 {
+    /// <summary>True when nothing was reported wrong.</summary>
     public bool IsSuccess => Errors.Count == 0;
 
+    /// <summary>A parsed value with nothing to report.</summary>
     public static ParseOutcome<T> Ok(T value) => new(value, []);
 
+    /// <summary>A failure carrying the validation errors that explain the retry.</summary>
     public static ParseOutcome<T> Fail(params string[] errors) => new(default, errors);
 }
 

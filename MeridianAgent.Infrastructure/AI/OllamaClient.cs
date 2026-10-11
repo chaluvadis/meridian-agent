@@ -24,8 +24,7 @@ public sealed class OllamaClient : ILlmClient
         }
 
         _retryPolicy = Policy
-            .Handle<HttpRequestException>()
-            .Or<TaskCanceledException>()
+            .Handle<LlmException>(IsTransient)
             .WaitAndRetryAsync(
                 _options.RetryCount,
                 attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt)),
@@ -40,6 +39,17 @@ public sealed class OllamaClient : ILlmClient
                 });
     }
 
+    /// <summary>
+    /// A failure worth another attempt: transport trouble (a refused connection, a timeout) or a
+    /// server-side status. A 4xx is the caller's error and is reported immediately. The transport
+    /// exceptions are already wrapped by the time they reach here, so the check looks at the
+    /// wrapper rather than the raw type.
+    /// </summary>
+    private static bool IsTransient(LlmException exception) =>
+        exception.InnerException is HttpRequestException or TaskCanceledException ||
+        exception.StatusCode is >= 500;
+
+    /// <summary>Asks Ollama for a complete reply and returns its text.</summary>
     public async Task<string> CompleteAsync(LlmRequest request, CancellationToken cancellationToken = default)
     {
         var stopwatch = Stopwatch.StartNew();
@@ -75,6 +85,7 @@ public sealed class OllamaClient : ILlmClient
         return content;
     }
 
+    /// <summary>Streams a reply token by token; unreadable chunks are skipped rather than failing the run.</summary>
     public async IAsyncEnumerable<string> StreamAsync(
         LlmRequest request,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -85,7 +96,7 @@ public sealed class OllamaClient : ILlmClient
             [new ChatMessage("user", request.Prompt)],
             Stream: true,
             Format: request.JsonMode ? "json" : null,
-            new ChatOptions(request.Temperature, request.MaxTokens ?? 1024));
+            new ChatOptions(request.Temperature, request.MaxTokens ?? _options.MaxTokens));
 
         var response = await ExecuteWithRetryAsync(
             () => SendAsync(payload, HttpCompletionOption.ResponseHeadersRead, cancellationToken),
@@ -131,6 +142,7 @@ public sealed class OllamaClient : ILlmClient
             stopwatch.ElapsedMilliseconds);
     }
 
+    /// <summary>Embeds one prompt into a vector, used by the Qdrant rulebook search.</summary>
     public async Task<float[]> EmbedAsync(LlmRequest request, CancellationToken cancellationToken = default)
     {
         var payload = new EmbeddingRequest(request.Model, request.Prompt);
@@ -204,30 +216,21 @@ public sealed class OllamaClient : ILlmClient
         string model,
         CancellationToken cancellationToken)
     {
-        HttpResponseMessage response;
         try
         {
-            response = await _retryPolicy
+            return await _retryPolicy
                 .ExecuteAsync(async ct => await SendOrThrowAsync(send, model, ct), cancellationToken)
                 .ConfigureAwait(false);
         }
-        catch (LlmException)
+        catch (LlmException ex) when (IsTransient(ex))
         {
-            throw;
-        }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
-        {
-            throw new LlmException($"Ollama call for model '{model}' failed after retries: {ex.Message}", ex);
-        }
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var body = await SafeReadAsync(response).ConfigureAwait(false);
             throw new LlmException(
-                $"Ollama returned HTTP {(int)response.StatusCode} for model '{model}': {body}");
+                $"Ollama call for model '{model}' failed after {_options.RetryCount + 1} attempts: {ex.Message}",
+                ex)
+            {
+                StatusCode = ex.StatusCode,
+            };
         }
-
-        return response;
     }
 
     private static async Task<HttpResponseMessage> SendOrThrowAsync(
@@ -242,8 +245,12 @@ public sealed class OllamaClient : ILlmClient
         }
 
         var body = await SafeReadAsync(response).ConfigureAwait(false);
+        var status = response.StatusCode;
         response.Dispose();
-        throw new LlmException($"Ollama returned HTTP {(int)response.StatusCode} for model '{model}': {body}");
+        throw new LlmException($"Ollama returned HTTP {(int)status} for model '{model}': {body}")
+        {
+            StatusCode = (int)status,
+        };
     }
 
     private static async Task<string> SafeReadAsync(HttpResponseMessage response)
@@ -267,7 +274,12 @@ public sealed class OllamaClient : ILlmClient
 
     private sealed record ChatMessage(string Role, string Content);
 
-    private sealed record ChatOptions(double Temperature, int NumPredict);
+    // Snaking Ollama's option names is not cosmetic: JsonContent.Create writes camelCase, and the
+    // Go decoder Ollama runs does not treat "numPredict" and "num_predict" as the same field, so
+    // without this the reply length limit would be quietly dropped.
+    private sealed record ChatOptions(
+        double Temperature,
+        [property: JsonPropertyName("num_predict")] int NumPredict);
 
     private sealed record ChatChunk
     {

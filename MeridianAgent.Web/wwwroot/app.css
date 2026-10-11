@@ -1199,3 +1199,500 @@ html, body {
         animation-duration: 2s;
     }
 }
+
+/*
+    Glance: saved answers and day-wise history, without scrolling through the transcript. A
+    right-hand drawer on a wide screen, a bottom sheet on a phone.
+*/
+
+.glance-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    background: rgba(15, 43, 70, 0.28);
+    animation: chat-fade-in 0.2s ease-out both;
+}
+
+.glance-panel {
+    position: fixed;
+    top: var(--app-bar-height);
+    right: 0;
+    bottom: 0;
+    z-index: 61;
+    width: 350px;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border-left: 1px solid var(--hairline);
+    box-shadow: -12px 0 40px rgba(15, 43, 70, 0.22);
+    animation: glance-slide-in 0.24s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+@keyframes glance-slide-in {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+}
+
+.glance-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.9rem 0.75rem 0.5rem 1.1rem;
+    border-bottom: 1px solid var(--hairline);
+}
+
+/* Only the sheet needs a grabber on a phone; the drawer is already docked. */
+.glance-handle {
+    display: none;
+    width: 40px;
+    height: 4px;
+    margin: 0.15rem auto 0.35rem;
+    border-radius: 2px;
+    background: rgba(15, 43, 70, 0.16);
+}
+
+.glance-heading {
+    flex: 1;
+    min-width: 0;
+}
+
+.glance-title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+.glance-subtitle {
+    margin: 0.1rem 0 0;
+    font-size: 0.72rem;
+    color: var(--ink-muted);
+}
+
+.glance-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    color: var(--ink-muted);
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.glance-close:hover {
+    background: rgba(15, 43, 70, 0.05);
+    color: var(--ink-strong);
+}
+
+.glance-tabs .mud-tab {
+    color: var(--ink-muted);
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    min-height: 44px;
+}
+
+    .glance-tabs .mud-tab.mud-tab-active {
+        color: var(--ink-strong);
+    }
+
+    .glance-tabs .mud-tab-slider {
+        background: var(--gold);
+        height: 2px;
+    }
+
+.glance-tab-panels {
+    flex: 1;
+    min-height: 0;
+}
+
+    .glance-tab-panels .mud-tab-panel {
+        height: 100%;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: 0.25rem 0 1.25rem;
+    }
+
+/* Saved answers */
+
+.glance-favorites {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.glance-favorite {
+    padding: 0.85rem 1.1rem;
+    border-bottom: 1px solid var(--hairline);
+}
+
+.glance-favorite-meta {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+}
+
+.glance-favorite-day {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--gold);
+}
+
+.glance-favorite-time {
+    font-size: 0.7rem;
+    color: var(--ink-faint);
+}
+
+.glance-favorite-preview {
+    margin: 0;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--ink-strong);
+}
+
+.glance-favorite-view {
+    margin-top: 0.35rem;
+    padding: 0.2rem 0;
+    background: transparent;
+    border: none;
+    color: var(--ink-muted);
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color 0.15s ease;
+}
+
+.glance-favorite-view:hover {
+    color: var(--ink-strong);
+}
+
+/* Day-wise timeline */
+
+.glance-timeline {
+    list-style: none;
+    margin: 0;
+    padding: 0.35rem 0 0;
+}
+
+.glance-day-button {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.7rem 1.1rem;
+    background: transparent;
+    border: none;
+    border-left: 2px solid var(--hairline);
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.glance-day-button:hover {
+    background: rgba(15, 43, 70, 0.04);
+}
+
+.glance-day-marker {
+    width: 9px;
+    height: 9px;
+    margin-top: 0.3rem;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 2px solid var(--ink-faint);
+}
+
+.glance-day-body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+}
+
+.glance-day-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+.glance-day-count {
+    font-size: 0.78rem;
+    color: var(--ink-muted);
+}
+
+.glance-day-badge {
+    padding: 0.05rem 0.45rem;
+    border-radius: 999px;
+    background: var(--gold-tint);
+    color: #92400e;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.glance-day-today .glance-day-marker {
+    border-color: var(--gold);
+    background: var(--gold);
+}
+
+/* Empty states */
+
+.glance-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    color: var(--ink-muted);
+    font-size: 0.9rem;
+}
+
+    .glance-empty p {
+        margin: 0;
+    }
+
+.glance-empty-icon {
+    margin-bottom: 0.4rem;
+    color: var(--ink-faint) !important;
+    font-size: 1.75rem !important;
+}
+
+.glance-empty-hint {
+    max-width: 15rem;
+    font-size: 0.8rem;
+    color: var(--ink-faint);
+}
+
+/* The full-answer dialog */
+
+.glance-dialog-stamp {
+    margin: 0 0 0.5rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--gold);
+}
+
+.glance-dialog-body {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.65;
+    color: var(--ink);
+    white-space: pre-line;
+}
+
+.glance-dialog-rich {
+    margin-top: 1rem;
+    padding: 0.85rem 1rem;
+    background: #F8F9FB;
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+}
+
+.glance-dialog-rich-title {
+    margin: 0 0 0.4rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+}
+
+    .glance-dialog-rich ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+    }
+
+    .glance-dialog-rich li {
+        display: flex;
+        flex-direction: column;
+        font-size: 0.88rem;
+    }
+
+        .glance-dialog-rich li strong {
+            color: var(--ink-strong);
+        }
+
+        .glance-dialog-rich li span {
+            font-size: 0.78rem;
+            color: var(--ink-muted);
+        }
+
+/* Reading a past day */
+
+.chat-message-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-top: 0.25rem;
+}
+
+.chat-favorite {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    color: var(--ink-faint);
+    cursor: pointer;
+    transition: color 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
+}
+
+.chat-favorite:hover:not(:disabled) {
+    background: rgba(15, 43, 70, 0.05);
+    color: var(--ink-muted);
+    transform: scale(1.06);
+}
+
+.chat-favorite-on {
+    color: var(--gold);
+}
+
+    .chat-favorite-on:hover:not(:disabled) {
+        background: rgba(197, 160, 89, 0.12);
+        color: var(--gold);
+    }
+
+.chat-favorite:disabled {
+    cursor: default;
+    opacity: 0.55;
+}
+
+.chat-history-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.6rem;
+    padding: 0.35rem 0.45rem 0.35rem 0.7rem;
+    background: rgba(197, 160, 89, 0.10);
+    border: 1px solid rgba(197, 160, 89, 0.35);
+    border-radius: 999px;
+}
+
+.chat-history-banner-icon {
+    color: var(--gold) !important;
+    font-size: 1rem !important;
+}
+
+.chat-history-banner-text {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--ink-strong);
+}
+
+.chat-history-back {
+    padding: 0.2rem 0.7rem;
+    background: var(--ink-strong);
+    border: none;
+    border-radius: 999px;
+    color: var(--surface);
+    font-family: inherit;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+    .chat-history-back:hover {
+        background: #14395C;
+    }
+
+/* Phones: the drawer becomes a sheet, and the grabber earns its keep. */
+
+@media (max-width: 600px) {
+    .glance-panel {
+        top: auto;
+        right: 0;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        max-height: 78vh;
+        border-left: none;
+        border-top: 1px solid var(--hairline);
+        border-radius: 20px 20px 0 0;
+        box-shadow: 0 -10px 34px rgba(15, 43, 70, 0.22);
+        animation: chat-sheet-up 0.24s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+    }
+
+    .glance-handle {
+        display: block;
+    }
+
+    .glance-favorite,
+    .glance-day-button {
+        padding-left: 0.85rem;
+        padding-right: 0.85rem;
+    }
+}
+
+/*
+    Respect a reduced-motion preference: the panel still appears, it just does not fly in.
+*/
+@media (prefers-reduced-motion: reduce) {
+    .glance-panel,
+    .glance-backdrop {
+        animation: none;
+    }
+}
+
+/*
+    The app bar's two icon actions. Plain buttons rather than MudIconButton on purpose: the bar is
+    the shell, and a button that owns its own click keeps the shell's behaviour in one place.
+*/
+
+.app-bar-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    color: var(--ink-muted);
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+    .app-bar-icon:hover {
+        background: rgba(15, 43, 70, 0.05);
+        color: var(--ink-strong);
+        transform: scale(1.05);
+    }
+
+    .app-bar-icon:active {
+        transform: scale(0.96);
+    }

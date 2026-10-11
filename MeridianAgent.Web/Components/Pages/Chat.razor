@@ -1,5 +1,4 @@
 @page "/"
-@rendermode InteractiveServer
 @implements IAsyncDisposable
 @inject NavigationManager Navigation
 @inject TravelQueryOrchestrator Orchestrator
@@ -11,6 +10,8 @@
 @inject IChatActivityTracker Activity
 @inject IUserProfileService ProfileService
 @inject ISynthesizerAgent Synthesizer
+@inject IChatHistoryService History
+@inject ILogger<Chat> Logger
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IJSRuntime JSRuntime
 
@@ -46,6 +47,16 @@
                 <MudIcon Icon="@Icons.Material.Filled.Map" Size="Size.Small" />
                 <span>@(_showMap ? "Hide nearby" : "Nearby")</span>
             </button>
+        }
+
+        @* Reading a past day is not today: the header says so and offers the way back. *@
+        @if (ChatState.IsViewingHistory)
+        {
+            <div class="chat-history-banner">
+                <MudIcon Icon="@Icons.Material.Filled.History" Size="Size.Small" Class="chat-history-banner-icon" />
+                <span class="chat-history-banner-text">Reading @ChatState.SessionDate.ToString("MMMM d")</span>
+                <button class="chat-history-back" @onclick="ShowTodayAsync">Back to today</button>
+            </div>
         }
     </header>
 
@@ -92,7 +103,23 @@
                         <div class="@bubbleClass">
                             @message.Content
                         </div>
+                    <div class="chat-message-meta">
                         <span class="chat-timestamp">@message.Timestamp.ToString("HH:mm")</span>
+
+                        @* Only the agent's own words are worth keeping: a heart on the traveler's
+                           own line would be a bookmark of something they wrote themselves. *@
+                        @if (message.Role != "user")
+                        {
+                            <button class="chat-favorite @(message.IsFavorite ? "chat-favorite-on" : null)"
+                                    aria-label="@(message.IsFavorite ? "Remove from saved" : "Save this answer")"
+                                    aria-pressed="@message.IsFavorite"
+                                    disabled="@(message.StoredId is null || ChatState.IsBusy)"
+                                    @onclick="() => ToggleFavoriteAsync(message)">
+                                <MudIcon Icon="@(message.IsFavorite ? Icons.Material.Filled.Favorite : Icons.Material.Filled.FavoriteBorder)"
+                                         Size="Size.Small" />
+                            </button>
+                        }
+                    </div>
 
                         @if (message.QuickActions is { Count: > 0 })
                         {
@@ -294,6 +321,10 @@
             _rulebook = await RulebookStore.GetAsync(_profile.Destination);
         }
 
+        // Today's transcript, so a refresh (or a new tab) picks up where the traveler left off.
+        // This runs during prerender too, which is what puts the history into the first paint.
+        await LoadTodayAsync();
+
         // The header shows the city as it is right now, so the greeting, the clock and the weather
         // it paints all come from the same place the pipeline reads. The provider caches briefly,
         // so prerendering plus the interactive circuit plus the first query cost one round trip,
@@ -384,6 +415,71 @@
 
     private void ToggleMap() => _showMap = !_showMap;
 
+    /// <summary>Reads today's day back into the transcript, replacing whatever is on screen.</summary>
+    private async Task LoadTodayAsync()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var sessionId = await TodaySessionIdAsync();
+
+        var stored = await History.GetMessagesForSessionAsync(sessionId);
+        var messages = stored.Select(ChatMessageCodec.ToDomain).ToList();
+
+        ChatState.LoadSession(today, messages, false);
+    }
+
+    private async Task ShowTodayAsync()
+    {
+        await LoadTodayAsync();
+        StateHasChanged();
+        await ScrollToBottomAsync();
+    }
+
+    /// <summary>
+    /// The session new messages belong to. The history service resolves it rather than the page
+    /// holding it, so there is one owner of "which day is today".
+    /// </summary>
+    private async Task<int> TodaySessionIdAsync()
+    {
+        var session = await History.GetCurrentSessionAsync();
+        return session.Id;
+    }
+
+    /// <summary>
+    /// Bookmarks an answer. The flip is applied to the transcript first so the heart responds to
+    /// the tap, and the write is queued behind it — if the database is unhappy the UI does not hang.
+    /// </summary>
+    private void ToggleFavoriteAsync(ChatMessage message)
+    {
+        if (message.StoredId is not int id)
+        {
+            return;
+        }
+
+        var desired = !message.IsFavorite;
+        ChatState.SetFavorite(message.Id, desired);
+
+        _ = PersistFavoriteAsync(id, desired, message.Id);
+    }
+
+    private async Task PersistFavoriteAsync(int messageId, bool desired, string chatMessageId)
+    {
+        try
+        {
+            var stored = await History.ToggleFavoriteAsync(messageId);
+
+            // A concurrent write may have moved the flag; the database is the truth.
+            if (stored is not null)
+            {
+                ChatState.SetFavorite(chatMessageId, stored.Value);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Could not bookmark message {MessageId}", messageId);
+            ChatState.SetFavorite(chatMessageId, !desired);
+        }
+    }
+
     /// <summary>
     /// The agent's first words after onboarding: generated by the Synthesizer from everything the
     /// traveler just shared, with a templated fallback so the chat never opens silently.
@@ -437,8 +533,17 @@
         Activity.RecordActivity();
         await PingHubAsync();
 
+        // A question asked while reading a past day belongs to today, so the view follows it back.
+        if (ChatState.IsViewingHistory)
+        {
+            await LoadTodayAsync();
+        }
+
         _query = string.Empty;
+        var userMessageId = Guid.NewGuid().ToString();
         ChatState.AddUser(query);
+        QueueSave(userMessageId, "user", query, null);
+
         ChatState.BeginAssistant();
         StateHasChanged();
 
@@ -468,9 +573,24 @@
         }
         finally
         {
-            ChatState.EndAssistant(response?.QuickActions);
+            var quickActions = response?.QuickActions;
+            ChatState.EndAssistant(quickActions);
 
-            var venues = Orchestrator.Blackboard.Itinerary?.Venues ?? Array.Empty<Venue>();
+            // The structured half of the reply — the places it proposed — is kept beside its text,
+            // so a saved answer still shows what was on offer when it is opened weeks later.
+            var itinerary = response?.Itinerary ?? Orchestrator.Blackboard.Itinerary ?? ProposedItinerary.Empty;
+
+            if (ChatState.Messages.Count > 0)
+            {
+                var last = ChatState.Messages[^1];
+
+                if (last.Role == "assistant")
+                {
+                    QueueSave(last.Id, "assistant", last.Content, quickActions, itinerary);
+                }
+            }
+
+            var venues = itinerary.Venues ?? Array.Empty<Venue>();
             var hadVenues = MapState.Venues.Count > 0;
             MapState.SetVenues(venues);
             MapState.SetLandmarks(request?.NearbyVenues ?? Array.Empty<NearbyVenue>(), request?.Context.Location ?? _profile.EffectiveLocation);
@@ -483,6 +603,48 @@
 
             StateHasChanged();
             await ScrollToBottomAsync();
+        }
+    }
+
+    /// <summary>
+    /// Persists a message without holding up the conversation. The transcript has already been
+    /// updated, so a slow or failed database write is invisible to the traveler except in the log.
+    /// </summary>
+    private void QueueSave(
+        string chatMessageId,
+        string role,
+        string content,
+        IReadOnlyList<QuickAction>? quickActions,
+        ProposedItinerary? itinerary = null)
+    {
+        _ = SaveInBackgroundAsync(chatMessageId, role, content, quickActions, itinerary);
+    }
+
+    private async Task SaveInBackgroundAsync(
+        string chatMessageId,
+        string role,
+        string content,
+        IReadOnlyList<QuickAction>? quickActions,
+        ProposedItinerary? itinerary)
+    {
+        try
+        {
+            var entity = ChatMessageCodec.ToEntity(
+                role,
+                content,
+                DateTime.Now,
+                quickActions,
+                RichContent.FromItinerary(itinerary));
+
+            var saved = await History.SaveMessageAsync(entity);
+
+            // Only now can the message be bookmarked, re-opened, or re-labelled by day.
+            ChatState.AttachStoredId(chatMessageId, saved.Id);
+        }
+        catch (Exception ex)
+        {
+            // The traveler's answer stays on screen; the history is what fails.
+            Logger.LogError(ex, "Could not save {Role} message to chat history", role);
         }
     }
 

@@ -18,7 +18,12 @@
 </head>
 
 <body>
-    <Routes />
+    @*
+        The render mode is set on the router, not on individual pages, so the shell that wraps every
+        page — the app bar, the glance trigger, the panel — is interactive too. With it only on the
+        pages, the layout rendered statically and the bar's buttons never fired.
+    *@
+    <Routes @rendermode="InteractiveServer" />
     <ReconnectModal />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
             integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>

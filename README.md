@@ -159,6 +159,41 @@ the message (tolerantly parsed: a broken envelope still yields the message, just
 tapping one either pans the map in the sheet or replays the payload straight through the pipeline,
 so acting on a suggestion never means typing.
 
+## Day-wise history and the glance panel
+
+The transcript is no longer ephemeral. Every message is written to SQLite as it happens — the text,
+the quick-action chips, and the places the reply proposed — and the app loads today's day back on
+start, so a refresh or a new tab picks up where you left off.
+
+Conversations are grouped into **days**: the first message written on a new calendar day opens a
+`ChatSession`, numbered from the day the traveler first talked to the agent. A two-day gap between
+conversations shows up honestly as a jump in day number rather than being renumbered away. The
+session is keyed per profile and per day by a unique index, so two messages racing across midnight
+cannot create two rows for the same day.
+
+The **glance** panel (the clock icon in the app bar) is there so none of this has to be scrolled
+through:
+
+- **Saved** — every bookmarked reply, newest first, as a scannable one-liner with its day and time.
+  "View" opens the answer in full, together with the places it proposed
+- **Timeline** — one row per day of conversation, with its message count. Opening a day puts it in
+  the chat and the header says "Reading October 9" with a way back to today
+
+Bookmarks are the heart under an agent's reply: grey when unset, gold when saved, applied
+immediately and written behind it so the tap never waits on the database. Only the agent's own words
+get a heart — bookmarking your own line would be a note to yourself.
+
+The history service is a singleton like the profile service, and for the same reason: it takes an
+`IDbContextFactory` and makes a short-lived context per operation, which keeps it safe across Blazor
+Server circuits. Writes happen off the render path, so a slow or failed save costs the history, never
+the answer on screen.
+
+The schema arrives as the `ChatHistory` migration, applied automatically at startup. Further changes:
+
+```bash
+dotnet ef migrations add <Name> --project MeridianAgent.Infrastructure --startup-project MeridianAgent.Web
+```
+
 ## Logging
 
 Every LLM call is logged through Serilog with model, prompt size, prompt/completion token counts,

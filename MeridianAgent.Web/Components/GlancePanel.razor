@@ -1,0 +1,256 @@
+@using MeridianAgent.Application
+@using MeridianAgent.Domain.Entities
+@using MeridianAgent.Web.Components.State
+@implements IDisposable
+@inject IChatHistoryService History
+@inject ChatState ChatState
+@inject IDialogService Dialogs
+
+@*
+    "Glance" is the anti-scroll view: everything the traveler saved, and everything they said, day
+    by day, without going back through the transcript. It is a right-hand drawer on a wide screen
+    and a bottom sheet on a phone, and it is opened from the clock icon in the app bar.
+
+    It reads and writes through the same ChatState the chat page uses, so picking a day here
+    changes what the chat shows — the panel is a view onto the conversation, not a copy of it.
+*@
+@if (_visible)
+{
+    <div class="glance-backdrop" @onclick="HideAsync"></div>
+
+    <aside class="glance-panel">
+        <header class="glance-header">
+            <div class="glance-handle" aria-hidden="true"></div>
+
+            <div class="glance-heading">
+                <h2 class="glance-title">Glance</h2>
+                <p class="glance-subtitle">@_subtitle</p>
+            </div>
+
+            <button class="glance-close"
+                    aria-label="Close the glance panel"
+                    @onclick="HideAsync">
+                <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Small" />
+            </button>
+        </header>
+
+        <MudTabs Rounded="true" Elevation="0" Class="glance-tabs" PanelClass="glance-tab-panels">
+            <MudTabPanel Text="Saved" Style="font-family: inherit;">
+                @if (_favorites.Count == 0)
+                {
+                    <div class="glance-empty">
+                        <MudIcon Icon="@Icons.Material.Filled.FavoriteBorder" Class="glance-empty-icon" />
+                        <p>Nothing saved yet.</p>
+                        <p class="glance-empty-hint">Tap the heart under an answer you want to keep an eye on.</p>
+                    </div>
+                }
+                else
+                {
+                    <ul class="glance-favorites">
+                        @foreach (var favorite in _favorites)
+                        {
+                            <li class="glance-favorite">
+                                <div class="glance-favorite-meta">
+                                    <span class="glance-favorite-day">@favorite.DayLabel</span>
+                                    <span class="glance-favorite-time">@favorite.Stamp</span>
+                                </div>
+                                <p class="glance-favorite-preview">@favorite.Preview</p>
+                            <button class="glance-favorite-view"
+                                    @onclick="() => OpenAsync(favorite)">
+                                View
+                            </button>
+                            </li>
+                        }
+                    </ul>
+                }
+            </MudTabPanel>
+
+            <MudTabPanel Text="Timeline" Style="font-family: inherit;">
+                @if (_days.Count == 0)
+                {
+                    <div class="glance-empty">
+                        <MudIcon Icon="@Icons.Material.Filled.History" Class="glance-empty-icon" />
+                        <p>No days yet.</p>
+                        <p class="glance-empty-hint">Each day you talk to Meridian shows up here.</p>
+                    </div>
+                }
+                else
+                {
+                    <ol class="glance-timeline">
+                        @foreach (var day in _days)
+                        {
+                            <li class="glance-day @(day.IsToday ? "glance-day-today" : null)">
+                                <button class="glance-day-button" @onclick="() => OpenDayAsync(day)">
+                                    <span class="glance-day-marker" aria-hidden="true"></span>
+                                    <span class="glance-day-body">
+                                        <span class="glance-day-title">Day @day.DayNumber · @day.Label</span>
+                                        <span class="glance-day-count">@day.Count</span>
+                                        @if (day.IsToday)
+                                        {
+                                            <span class="glance-day-badge">Today</span>
+                                        }
+                                    </span>
+                                </button>
+                            </li>
+                        }
+                    </ol>
+                }
+            </MudTabPanel>
+        </MudTabs>
+    </aside>
+}
+
+@code {
+    [Parameter]
+    public bool Visible
+    {
+        get => _visible;
+        set
+        {
+            if (value == _visible)
+            {
+                return;
+            }
+
+            _visible = value;
+            _ = VisibleChanged.InvokeAsync(value);
+        }
+    }
+
+    [Parameter]
+    public EventCallback<bool> VisibleChanged { get; set; }
+
+    private bool _visible;
+    private bool _loaded;
+    private List<FavoriteRow> _favorites = new();
+    private List<DayRow> _days = new();
+    private readonly DateOnly _today = DateOnly.FromDateTime(DateTime.Now);
+
+    private string _subtitle => _days.Count == 0
+        ? "Nothing saved, no days yet"
+        : $"{_days.Count} day{(_days.Count == 1 ? "" : "s")} · {_favorites.Count} saved";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // The panel only reaches for the database once it is actually open, so a closed glance
+        // panel costs a traveler nothing.
+        if (_visible && !_loaded)
+        {
+            _loaded = true;
+            await RefreshAsync();
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        // A bookmark set in the chat lands here immediately rather than on the next open.
+        ChatState.FavoritesChanged += OnFavoritesChanged;
+    }
+
+    public void Dispose()
+    {
+        ChatState.FavoritesChanged -= OnFavoritesChanged;
+    }
+
+    private async void OnFavoritesChanged()
+    {
+        if (!_visible)
+        {
+            return;
+        }
+
+        await InvokeAsync(async () => await RefreshAsync());
+    }
+
+    private async Task RefreshAsync()
+    {
+        _favorites = LoadFavorites(await History.GetFavoritesAsync());
+        _days = LoadDays(await History.GetSessionsAsync());
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private List<FavoriteRow> LoadFavorites(IReadOnlyList<ChatMessageEntity> stored)
+    {
+        return stored
+            .Select(message => new FavoriteRow(
+                message.Id,
+                message.Timestamp,
+                DayLabel(message.Session),
+                message.Timestamp.ToString("MMM d, h:mm tt"),
+                Preview(message.Content),
+                message.Content,
+                ChatMessageCodec.ReadRichContent(message)))
+            .ToList();
+    }
+
+    private List<DayRow> LoadDays(IReadOnlyList<ChatSession> stored)
+    {
+        return stored
+            // A day that was opened but never written to is not a day of history worth listing.
+            .Where(session => session.Messages.Count > 0)
+            .Select(session => new DayRow(
+                session.Id,
+                session.Date,
+                session.DayNumber,
+                session.Messages.Count,
+                session.Date.ToString("MMMM d"),
+                session.Date == _today))
+            .OrderByDescending(day => day.Date)
+            .ToList();
+    }
+
+    private static string DayLabel(ChatSession? session) =>
+        session is null ? "Saved" : $"Day {session.DayNumber} · {session.Date:MMM d}";
+
+    /// <summary>The scannable form: one line, no newlines, capped at 60 characters.</summary>
+    private static string Preview(string content)
+    {
+        var flattened = new string((content ?? string.Empty)
+            .Replace("\r\n", " ")
+            .Replace('\n', ' ')
+            .Where(character => !char.IsControl(character))
+            .ToArray())
+            .Trim();
+
+        while (flattened.Contains("  ", StringComparison.Ordinal))
+        {
+            flattened = flattened.Replace("  ", " ", StringComparison.Ordinal);
+        }
+
+        return flattened.Length <= 60 ? flattened : string.Concat(flattened.AsSpan(0, 60), "…");
+    }
+
+    private async Task OpenAsync(FavoriteRow favorite)
+    {
+        var parameters = new DialogParameters
+        {
+            ["Favorite"] = favorite,
+        };
+
+        var options = new DialogOptions
+        {
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true,
+            CloseButton = true,
+        };
+
+        await Dialogs.ShowAsync<GlanceMessageDialog>("Saved answer", parameters, options);
+    }
+
+    /// <summary>Reads a day into the chat, then gets out of the way so the traveler can read it.</summary>
+    private async Task OpenDayAsync(DayRow day)
+    {
+        var messages = await History.GetMessagesForSessionAsync(day.SessionId);
+        var rendered = messages.Select(ChatMessageCodec.ToDomain).ToList();
+        var isHistory = day.Date != _today;
+
+        ChatState.LoadSession(day.Date, rendered, isHistory);
+        await HideAsync();
+    }
+
+    private Task HideAsync()
+    {
+        _visible = false;
+        return VisibleChanged.InvokeAsync(false);
+    }
+}

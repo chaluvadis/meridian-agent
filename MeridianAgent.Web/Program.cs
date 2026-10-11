@@ -41,6 +41,9 @@ builder.Services.AddSingleton<IUserProfileService, UserProfileService>();
 var meridianConnectionString = builder.Configuration.GetConnectionString("Meridian")
                                ?? MeridianDatabase.DefaultConnectionString;
 builder.Services.AddMeridianDatabase(meridianConnectionString);
+// Day-wise chat history. Singleton for the same reason as the profile service: the chat circuit,
+// the route guard, and the Glance panel all share it, and every operation makes its own context.
+builder.Services.AddSingleton<IChatHistoryService, ChatHistoryService>();
 builder.Services.AddSingleton<IRulebookStore, JsonFileRulebookStore>();
 builder.Services.AddSingleton<INearbyVenueStore, JsonFileNearbyVenueStore>();
 builder.Services.AddSingleton<VectorRulebookNarrower>();

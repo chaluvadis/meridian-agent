@@ -5,8 +5,8 @@
 
 @*
     The whole app is the chat, so the shell is deliberately thin: one top app bar that names the
-    product, shows where the traveler is, and carries the single settings entry point. No sidebar,
-    no nav items — everything else in the app is contextual.
+    product, shows where the traveler is, and carries the two ways to look sideways - the history
+    glance and the settings. No sidebar, no nav items - everything else in the app is contextual.
 *@
 <MudThemeProvider Theme="MeridianTheme.Create()" />
 <MudPopoverProvider />
@@ -30,12 +30,19 @@
                     </MudText>
                 }
 
-                <MudIconButton Icon="@Icons.Material.Filled.Settings"
-                               Color="Color.Inherit"
-                               Class="app-bar-settings"
-                               aria-label="Edit traveler profile"
-                               title="Edit traveler profile"
-                               OnClick="GoToProfileEdit" />
+                <button class="app-bar-icon"
+                        aria-label="Open the glance panel"
+                        title="Saved answers and past days"
+                        @onclick="OpenGlance">
+                    <MudIcon Icon="@Icons.Material.Filled.History" Size="Size.Small" />
+                </button>
+
+                <button class="app-bar-icon"
+                        aria-label="Edit traveler profile"
+                        title="Edit traveler profile"
+                        @onclick="GoToProfileEdit">
+                    <MudIcon Icon="@Icons.Material.Filled.Settings" Size="Size.Small" />
+                </button>
             </div>
         </MudContainer>
     </MudAppBar>
@@ -47,6 +54,8 @@
     </MudMainContent>
 </MudLayout>
 
+<GlancePanel @bind-Visible="_showGlance" />
+
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.
     <a href="." class="reload">Reload</a>
@@ -55,6 +64,7 @@
 
 @code {
     private string _location = string.Empty;
+    private bool _showGlance;
 
     protected override async Task OnInitializedAsync()
     {
@@ -73,4 +83,13 @@
     }
 
     private void GoToProfileEdit() => Navigation.NavigateTo("/profile/edit");
+
+    private void OpenGlance()
+    {
+        _showGlance = true;
+
+        // The bar is the shell rather than a routed page, so the flip is made explicit: the panel
+        // must appear the moment the traveler taps the clock.
+        StateHasChanged();
+    }
 }

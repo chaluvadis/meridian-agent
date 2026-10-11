@@ -1,0 +1,50 @@
+@using MeridianAgent.Domain.Entities
+
+<MudDialog>
+    <DialogContent>
+        @if (Favorite is null)
+        {
+            <p class="glance-dialog-body">That answer is no longer available.</p>
+        }
+        else
+        {
+            <div class="glance-dialog">
+                <p class="glance-dialog-stamp">@Favorite.Stamp · @Favorite.DayLabel</p>
+
+                <p class="glance-dialog-body">@Favorite.Content</p>
+
+                @if (Favorite.RichContent is { IsEmpty: false } rich)
+                {
+                    <div class="glance-dialog-rich">
+                        <p class="glance-dialog-rich-title">What was proposed</p>
+                        <ul>
+                            @foreach (var block in rich.Blocks)
+                            {
+                                <li>
+                                    <strong>@block.Text</strong>
+                                    @if (!string.IsNullOrWhiteSpace(block.Detail))
+                                    {
+                                        <span>@block.Detail</span>
+                                    }
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Secondary" Variant="Variant.Filled" OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance? Instance { get; set; }
+
+    [Parameter]
+    public FavoriteRow Favorite { get; set; } = default!;
+
+    private void Close() => Instance?.Close(DialogResult.Ok(true));
+}

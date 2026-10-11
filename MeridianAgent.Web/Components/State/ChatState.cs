@@ -13,12 +13,51 @@ public sealed class ChatState
 
     public string? StreamingContent { get; private set; }
 
+    /// <summary>The calendar day the transcript currently on screen belongs to.</summary>
+    public DateOnly SessionDate { get; private set; } = DateOnly.FromDateTime(DateTime.Now);
+
+    /// <summary>True while the transcript is a past day rather than today.</summary>
+    public bool IsViewingHistory { get; private set; }
+
+    /// <summary>Raised when a bookmark is added or removed, so the Glance panel can refresh live.</summary>
+    public event Action? FavoritesChanged;
+
     public event Action? Changed;
 
     public void AddUser(string content)
     {
         _messages.Add(new ChatMessage(Guid.NewGuid().ToString(), "user", content, DateTime.Now));
         NotifyChanged();
+    }
+
+    /// <summary>Marks a message as stored, so the favourite toggle can find it after a reload.</summary>
+    public void AttachStoredId(string messageId, int storedId)
+    {
+        var message = _messages.FirstOrDefault(entry => entry.Id == messageId);
+
+        if (message is null)
+        {
+            return;
+        }
+
+        var index = _messages.IndexOf(message);
+        _messages[index] = message with { StoredId = storedId };
+    }
+
+    /// <summary>Applies the state a bookmark was just set to, without waiting for a re-read.</summary>
+    public void SetFavorite(string messageId, bool isFavorite)
+    {
+        var message = _messages.FirstOrDefault(entry => entry.Id == messageId);
+
+        if (message is null)
+        {
+            return;
+        }
+
+        var index = _messages.IndexOf(message);
+        _messages[index] = message with { IsFavorite = isFavorite };
+        NotifyChanged();
+        FavoritesChanged?.Invoke();
     }
 
     public void BeginAssistant()
@@ -84,13 +123,30 @@ public sealed class ChatState
         _messages.Clear();
         StreamingContent = null;
         IsBusy = false;
+        IsViewingHistory = false;
+        SessionDate = DateOnly.FromDateTime(DateTime.Now);
+        NotifyChanged();
+    }
+
+    /// <summary>
+    /// Replaces the transcript with a stored day. The messages keep their ids and bookmark state,
+    /// so hearts and the Glance panel continue to refer to the same rows.
+    /// </summary>
+    public void LoadSession(DateOnly date, IReadOnlyList<ChatMessage> messages, bool isHistory)
+    {
+        _messages.Clear();
+        _messages.AddRange(messages);
+        StreamingContent = null;
+        IsBusy = false;
+        SessionDate = date;
+        IsViewingHistory = isHistory;
         NotifyChanged();
     }
 
     private void NotifyChanged() => Changed?.Invoke();
 }
 
-/// <summary>Shared venue locations so Chat can show the map and the Map page can follow along.</summary>
+/// <summary>Shared venue locations so Chat can show the map sheet and follow along.</summary>
 public sealed class MapState
 {
     private readonly List<Venue> _venues = new();

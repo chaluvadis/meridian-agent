@@ -92,13 +92,27 @@ public class MixedVenueNegotiationTests
     }
 
     [Fact]
+    public async Task ProposeAsync_TeachesOnlyATradeTheParserWouldAccept()
+    {
+        // The prompt example comes from the same constant the retry feedback offers, so the model
+        // is never taught a phrasing the consistency rule would bounce back for a wasted retry.
+        var client = new ScriptedLlmClient(
+            """[{"venue_name": "Karak House", "venue_type": "indoor", "category": "cafe"}]""");
+        var agent = new SearchAgent(client, NullLogger<SearchAgent>.Instance);
+
+        await agent.ProposeAsync(TestData.Constraints, TestData.Request());
+
+        Assert.Contains(SearchAgent.MixedVenueTradeExample, client.Calls[0].Prompt);
+    }
+
+    [Fact]
     public async Task ProposeAsync_CarriesAMixedVenueCompromiseThatNamesItsShelter()
     {
-        var agent = CreateAgent("""
+        var agent = CreateAgent($$"""
             [{"venue_name": "Arabian Tea House", "venue_type": "mixed", "category": "restaurant",
               "travel_time_minutes": 11,
               "why_it_fits": "Vegetarian courtyard dining with a fully air-conditioned indoor section.",
-              "compromise": "A mixed venue rather than the fully indoor one you asked for — its indoor section is air-conditioned and the courtyard is shaded"}]
+              "compromise": "{{SearchAgent.MixedVenueTradeExample}}"}]
             """);
 
         var itinerary = await agent.ProposeAsync(TestData.Constraints, TestData.Request());
@@ -158,8 +172,7 @@ public class MixedVenueNegotiationTests
           "compromise": "{{compromise}}"}]
         """;
 
-    private static string MixedTrade() => VenueWith(
-        "A mixed venue rather than the fully indoor one you asked for — its indoor section is air-conditioned and the courtyard is shaded");
+    private static string MixedTrade() => VenueWith(SearchAgent.MixedVenueTradeExample);
 }
 
 /// <summary>

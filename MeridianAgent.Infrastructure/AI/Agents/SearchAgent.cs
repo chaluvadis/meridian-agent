@@ -12,6 +12,16 @@ public sealed class SearchAgent(
 {
     public const string DefaultModel = "qwen2.5:3b";
 
+    /// <summary>
+    /// The one phrasing the Search Agent is taught for a mixed-venue trade, and the same one the
+    /// retry feedback offers when a compromise is too vague to weigh. The prompt, the feedback
+    /// message, and the tests all read this constant, so an edit that turns the example into a
+    /// phrasing <see cref="NamesTheShelter"/> rejects is caught here rather than costing the model
+    /// a retry attempt on every query that negotiates.
+    /// </summary>
+    public const string MixedVenueTradeExample =
+        "A mixed venue rather than the fully indoor one you asked for — its indoor section is air-conditioned and the courtyard is shaded";
+
     private const string Prompt = """
         You are a hyper-personalized, resourceful travel planning agent. Your job is to find the BEST POSSIBLE match for the user, even when a 100% perfect match does not exist.
 
@@ -46,7 +56,7 @@ public sealed class SearchAgent(
         - If no perfect match exists, propose the CLOSEST POSSIBLE MATCH that respects ALL HARD constraints, and say in "compromise" exactly which soft preference you bent and how.
           * State the trade in one of these forms, never anything vaguer:
             - a measured difference — "It is 15 mins away instead of your preferred 10 mins", "about 20 dirhams more per head"
-            - a named swap — "Italian rather than the Japanese you asked for", "a mixed venue rather than the fully indoor one you asked for — its indoor section is fully air-conditioned and the courtyard is shaded"
+            - a named swap — "Italian rather than the Japanese you asked for", "$MixedVenueTradeExample"
           * Never write "slightly further out", "a bit pricier", "close enough": the traveler has to be able to accept or refuse the trade, and cannot weigh a hedge.
           * Set "compromise" to null only when the match is exact.
         - NEGOTIATE, DO NOT REFUSE: you MUST return 1 to 3 venues. Return the error form ONLY when no venue in the entire nearby list satisfies the HARD constraints (for example, a vegetarian request in an area with nothing but meat-focused stalls). Never return it because the setting, vibe, travel time, or budget was not perfect — that is a compromise to describe, not a dead end.
@@ -101,6 +111,7 @@ public sealed class SearchAgent(
                 ["Temperature"] = JsonElementReader.ToInvariant(context?.TemperatureC ?? 0),
                 ["WeatherCondition"] = context?.WeatherCondition ?? "unknown",
                 ["IsRaining"] = JsonElementReader.ToJsonLiteral(context?.IsRaining ?? false),
+                ["MixedVenueTradeExample"] = MixedVenueTradeExample,
                 ["NearbyVenuesJson"] = JsonElementReader.Serialize(request.NearbyVenues),
             });
 
@@ -231,9 +242,8 @@ public sealed class SearchAgent(
         errors.Add(
             $"venue #{index} compromise must state the trade, as a measurement ('It is 15 mins away " +
             "instead of your preferred 10 mins'), a named swap ('Italian rather than the Japanese " +
-            "you asked for'), or a mixed-venue trade naming its shelter ('A mixed venue rather than " +
-            $"the fully indoor one you asked for — its indoor section is air-conditioned'); '{text}' " +
-            "says something was relaxed but not what");
+            "you asked for'), or a mixed-venue trade naming its shelter ('" + MixedVenueTradeExample +
+            $"'); '{text}' says something was relaxed but not what");
 
         return text;
     }

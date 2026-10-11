@@ -11,6 +11,7 @@ builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection(Stor
 builder.Services.Configure<NominatimOptions>(builder.Configuration.GetSection(NominatimOptions.SectionName));
 builder.Services.Configure<WeatherOptions>(builder.Configuration.GetSection(WeatherOptions.SectionName));
 builder.Services.Configure<ProactiveSuggestionsOptions>(builder.Configuration.GetSection(ProactiveSuggestionsOptions.SectionName));
+builder.Services.Configure<WeatherPivotOptions>(builder.Configuration.GetSection(WeatherPivotOptions.SectionName));
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 // MudBlazor: services plus the theme providers rendered by the layouts.
@@ -56,10 +57,13 @@ builder.Services.AddHostedService<RulebookIndexingService>();
 builder.Services.AddHostedService<ProactiveSuggestionScheduler>();
 builder.Services.AddSingleton<IChatActivityTracker, ChatActivityTracker>();
 builder.Services.AddSingleton<IProactiveChatNotifier, HubChatNotifier>();
+builder.Services.AddSingleton<WeatherPivotService>();
+builder.Services.AddSingleton(new SignatureCooldown(TimeSpan.FromHours(4)));
 builder.Services.AddScoped<AgentBlackboard>();
 builder.Services.AddScoped<TravelQueryOrchestrator>();
 builder.Services.AddScoped<ChatState>();
 builder.Services.AddScoped<MapState>();
+builder.Services.AddScoped<SpeechInterop>();
 var app = builder.Build();
 
 // SQLite: apply pending migrations before the first request, then import the JSON profiles written

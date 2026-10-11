@@ -11,6 +11,7 @@
 @inject IUserProfileService ProfileService
 @inject ISynthesizerAgent Synthesizer
 @inject IChatHistoryService History
+@inject SpeechInterop Speech
 @inject ILogger<Chat> Logger
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IJSRuntime JSRuntime
@@ -77,11 +78,14 @@
 
             @foreach (var message in ChatState.Messages)
             {
-                var bubbleClass = message.Type == MessageType.Proactive
-                    ? "chat-bubble chat-assistant chat-proactive"
-                    : message.Role == "user"
-                        ? "chat-bubble chat-user"
-                        : "chat-bubble chat-assistant";
+                var isPivot = message.Type == MessageType.WeatherPivot;
+                var bubbleClass = isPivot
+                    ? "chat-bubble chat-assistant chat-pivot"
+                    : message.Type == MessageType.Proactive
+                        ? "chat-bubble chat-assistant chat-proactive"
+                        : message.Role == "user"
+                            ? "chat-bubble chat-user"
+                            : "chat-bubble chat-assistant";
 
                 <div class="chat-message-row @(message.Role == "user" ? "chat-message-row-user" : null)">
                     @if (message.Role != "user")
@@ -92,7 +96,14 @@
                     }
 
                     <div class="chat-message-main">
-                        @if (message.Type == MessageType.Proactive)
+                        @if (isPivot)
+                        {
+                            <div class="pivot-badge">
+                                <MudIcon Icon="@Icons.Material.Filled.Warning" Size="Size.Small" />
+                                Weather change
+                            </div>
+                        }
+                        else if (message.Type == MessageType.Proactive)
                         {
                             <div class="proactive-badge">
                                 <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" Size="Size.Small" />
@@ -116,6 +127,14 @@
                                     disabled="@(message.StoredId is null || ChatState.IsBusy)"
                                     @onclick="() => ToggleFavoriteAsync(message)">
                                 <MudIcon Icon="@(message.IsFavorite ? Icons.Material.Filled.Favorite : Icons.Material.Filled.FavoriteBorder)"
+                                         Size="Size.Small" />
+                            </button>
+
+                            <button class="chat-speak @(_speakingMessageId == message.Id ? "chat-speak-on" : null)"
+                                    aria-label="@(_speakingMessageId == message.Id ? "Stop reading this aloud" : "Read this aloud")"
+                                    aria-pressed="@(_speakingMessageId == message.Id)"
+                                    @onclick="() => ToggleSpeakingAsync(message)">
+                                <MudIcon Icon="@(_speakingMessageId == message.Id ? Icons.Material.Filled.VolumeOff : Icons.Material.Filled.VolumeUp)"
                                          Size="Size.Small" />
                             </button>
                         }
@@ -224,12 +243,20 @@
 
         <div class="chat-input">
             <input class="chat-input-field"
-                   placeholder="How are you feeling right now?"
+                   placeholder="@(_listening ? "Listening…" : "How are you feeling right now?")"
                    aria-label="Ask The Meridian Agent"
                    @bind="_query"
                    @bind:event="oninput"
-                   disabled="@ChatState.IsBusy"
+                   disabled="@(ChatState.IsBusy || _listening)"
                    @onkeydown="OnKeyDown" />
+            <button class="chat-mic @(_listening ? "chat-mic-on" : null)"
+                    @onclick="ToggleListeningAsync"
+                    disabled="@(ChatState.IsBusy || !_speechSupported)"
+                    aria-label="@(_listening ? "Stop listening" : "Talk to The Meridian Agent")"
+                    aria-pressed="@_listening"
+                    title="@(_speechSupported ? "Speak your question" : "This browser cannot listen")">
+                <MudIcon Icon="@(_listening ? Icons.Material.Filled.MicOff : Icons.Material.Filled.Mic)" Size="Size.Small" />
+            </button>
             <button class="chat-send"
                     @onclick="() => SendAsync(_query)"
                     disabled="@(ChatState.IsBusy || string.IsNullOrWhiteSpace(_query))"
@@ -254,6 +281,9 @@
     private ElementReference _messagesContainer;
     private string _query = string.Empty;
     private bool _showMap;
+    private bool _listening;
+    private bool _speechSupported;
+    private string? _speakingMessageId;
     private UserProfile _profile = UserProfile.Default;
     private DestinationRulebook? _rulebook;
     private string _profileName = "Traveler";
@@ -313,6 +343,22 @@
     {
         ChatState.Changed += OnStateChanged;
 
+        // Voice is an extra, never a requirement: a browser without the Web Speech API keeps the
+        // microphone disabled rather than showing a button that does nothing.
+        try
+        {
+            _speechSupported = await Speech.IsSupportedAsync();
+        }
+        catch (Exception)
+        {
+            _speechSupported = false;
+        }
+
+        Speech.UtteranceFinal += OnUtteranceFinalAsync;
+        Speech.ListeningStopped += OnListeningStoppedAsync;
+        Speech.ListeningFailed += OnListeningFailedAsync;
+        Speech.SpeakingFinished += OnSpeakingFinishedAsync;
+
         _profile = await ProfileService.GetProfileAsync("default") ?? UserProfile.Default;
         _profileName = _profile.DisplayName;
 
@@ -356,19 +402,30 @@
             .WithAutomaticReconnect()
             .Build();
 
-        _hubConnection.On<string, string>("ReceiveProactiveMessage", (messageId, content) =>
-        {
-            ChatState.AddProactive(messageId, content);
-
-            // A proactive message is agent activity: keep the session fresh enough for more.
-            Activity.RecordActivity();
-
-            return InvokeAsync(async () =>
+        _hubConnection.On<string, string, string>(
+            "ReceiveProactiveMessage",
+            (messageId, content, kind) =>
             {
-                StateHasChanged();
-                await ScrollToBottomAsync();
+                // A weather pivot is not a gentle nudge: it is the agent saying a saved plan has a
+                // problem, and it is tagged so the chat can show it that way.
+                var type = string.Equals(kind, "weatherPivot", StringComparison.OrdinalIgnoreCase)
+                    ? MessageType.WeatherPivot
+                    : MessageType.Proactive;
+
+                ChatState.AddProactive(messageId, content, type);
+
+                // Reading aloud through a weather alarm would bury it, so the voice steps aside.
+                _ = StopSpeakingAsync();
+
+                // A proactive message is agent activity: keep the session fresh enough for more.
+                Activity.RecordActivity();
+
+                return InvokeAsync(async () =>
+                {
+                    StateHasChanged();
+                    await ScrollToBottomAsync();
+                });
             });
-        });
 
         try
         {
@@ -398,6 +455,111 @@
     }
 
     private void ToggleMap() => _showMap = !_showMap;
+
+    /// <summary>
+    /// Opens or closes the microphone. A refused permission or a browser with no speech engine
+    /// leaves the button off rather than stuck half-on, so the traveler can always retry.
+    /// </summary>
+    private async Task ToggleListeningAsync()
+    {
+        if (!_speechSupported)
+        {
+            return;
+        }
+
+        if (_listening)
+        {
+            await Speech.StopListeningAsync();
+            _listening = false;
+            return;
+        }
+
+        if (ChatState.IsBusy)
+        {
+            return;
+        }
+
+        var started = await Speech.StartListeningAsync();
+        _listening = started;
+
+        if (!started)
+        {
+            // The browser declined or the engine is unavailable: stop offering it rather than
+            // letting the traveler find a button that never listens.
+            _speechSupported = false;
+        }
+    }
+
+    /// <summary>
+    /// Voice-first: the transcript lands in the box and is sent on its own. Typing is still there
+    /// for anyone who wants to edit first — the mic only fills the field, it never takes over it.
+    /// </summary>
+    private async Task OnUtteranceFinalAsync(string transcript)
+    {
+        await InvokeAsync(async () =>
+        {
+            _listening = false;
+            _query = transcript;
+
+            if (!string.IsNullOrWhiteSpace(transcript))
+            {
+                await SendAsync(transcript);
+                return;
+            }
+
+            StateHasChanged();
+        });
+    }
+
+    private Task OnListeningStoppedAsync() => InvokeAsync(() =>
+    {
+        _listening = false;
+        StateHasChanged();
+    });
+
+    private Task OnListeningFailedAsync(string reason)
+    {
+        // "no-speech" is the browser saying the traveler said nothing, which is not a failure worth
+        // logging as an error; everything else (denied, network, audio-capture) is.
+        if (!string.Equals(reason, "no-speech", StringComparison.OrdinalIgnoreCase))
+        {
+            Logger.LogWarning("Speech recognition failed: {Reason}", reason);
+        }
+
+        _listening = false;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// Reads an answer aloud, or stops it. One message at a time: asking to hear something else
+    /// replaces what is being said, so the traveler never hears two voices over each other.
+    /// </summary>
+    private async Task ToggleSpeakingAsync(ChatMessage message)
+    {
+        if (_speakingMessageId == message.Id)
+        {
+            await StopSpeakingAsync();
+            StateHasChanged();
+            return;
+        }
+
+        var speaking = await Speech.SpeakAsync(message.Content);
+
+        _speakingMessageId = speaking ? message.Id : null;
+        StateHasChanged();
+    }
+
+    private async Task StopSpeakingAsync()
+    {
+        await Speech.StopSpeakingAsync();
+        _speakingMessageId = null;
+    }
+
+    private Task OnSpeakingFinishedAsync() => InvokeAsync(() =>
+    {
+        _speakingMessageId = null;
+        StateHasChanged();
+    });
 
     /// <summary>Reads today's day back into the transcript, replacing whatever is on screen.</summary>
     private async Task LoadTodayAsync()
@@ -714,6 +876,12 @@
     public async ValueTask DisposeAsync()
     {
         ChatState.Changed -= OnStateChanged;
+        Speech.UtteranceFinal -= OnUtteranceFinalAsync;
+        Speech.ListeningStopped -= OnListeningStoppedAsync;
+        Speech.ListeningFailed -= OnListeningFailedAsync;
+        Speech.SpeakingFinished -= OnSpeakingFinishedAsync;
+
+        await Speech.DisposeAsync();
 
         if (_hubConnection is not null)
         {

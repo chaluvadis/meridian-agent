@@ -28,6 +28,12 @@ public interface IChatHistoryService
     /// <summary>Every bookmarked message, newest first.</summary>
     Task<IReadOnlyList<ChatMessageEntity>> GetFavoritesAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Today's bookmarked answers only, oldest first. This is what "compile my itinerary" reads, so
+    /// the plan is built from what was saved today rather than everything saved ever.
+    /// </summary>
+    Task<IReadOnlyList<ChatMessageEntity>> GetFavoritesForCurrentSessionAsync(CancellationToken cancellationToken = default);
+
     /// <summary>All days with history, oldest first, each carrying its messages.</summary>
     Task<IReadOnlyList<ChatSession>> GetSessionsAsync(CancellationToken cancellationToken = default);
 

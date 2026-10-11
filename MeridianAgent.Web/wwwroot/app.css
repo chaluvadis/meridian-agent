@@ -1696,3 +1696,262 @@ html, body {
     .app-bar-icon:active {
         transform: scale(0.96);
     }
+
+/* Voice: the microphone is a red "listening" state, the speaker a gold one */
+
+.chat-speak {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    color: var(--ink-faint);
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+    .chat-speak:hover:not(:disabled) {
+        background: rgba(15, 43, 70, 0.05);
+        color: var(--ink-muted);
+        transform: scale(1.06);
+    }
+
+.chat-speak-on {
+    color: var(--gold);
+}
+
+    .chat-speak-on:hover:not(:disabled) {
+        background: rgba(197, 160, 89, 0.12);
+    }
+
+.chat-mic {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    padding: 0;
+    background: rgba(15, 43, 70, 0.05);
+    border: 1px solid var(--hairline);
+    border-radius: 50%;
+    color: var(--ink-muted);
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+    .chat-mic:hover:not(:disabled) {
+        background: rgba(15, 43, 70, 0.08);
+        color: var(--ink-strong);
+    }
+
+.chat-mic-on {
+    background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.35);
+    color: #ef4444;
+}
+
+    .chat-mic-on:hover:not(:disabled) {
+        background: rgba(239, 68, 68, 0.18);
+        color: #ef4444;
+    }
+
+/* A live mic is the one thing in the composer worth breathing */
+
+@keyframes chat-mic-pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.35);
+    }
+
+    50% {
+        box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+    }
+}
+
+.chat-mic-on:not(:disabled) {
+    animation: chat-mic-pulse 1.8s ease-in-out infinite;
+}
+
+/* A weather pivot is the agent raising its hand: red, not gold, because the news is not good */
+
+.chat-pivot {
+    border-left: 4px solid #ef4444;
+    background: #fef2f2;
+}
+
+.pivot-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-bottom: 0.35rem;
+    padding: 0.15rem 0.55rem 0.15rem 0.4rem;
+    border-radius: 999px;
+    background: rgba(239, 68, 68, 0.12);
+    color: #b91c1c;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+/* "Compile Itinerary" — the saved list becomes a document */
+
+.glance-itinerary-launch {
+    padding: 0.25rem 0.25rem 0.75rem;
+}
+
+.glance-compile {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    width: 100%;
+    min-height: 44px;
+    padding: 0.7rem 1rem;
+    background: var(--ink-strong);
+    border: 1px solid var(--ink-strong);
+    border-radius: 10px;
+    color: var(--gold);
+    font-family: inherit;
+    font-size: 0.92rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+    .glance-compile:hover:not(:disabled) {
+        background: #1E3A5F;
+        transform: translateY(-1px);
+    }
+
+    .glance-compile:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+.glance-compile-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(197, 160, 89, 0.35);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: glance-spin 0.7s linear infinite;
+}
+
+@keyframes glance-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.glance-compile-hint {
+    margin: 0.55rem 0 0;
+    color: var(--ink-faint);
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+/* The document itself: navy rule, gold accent, generous margins, real whitespace */
+
+.glance-itinerary {
+    display: flex;
+    gap: 0;
+    padding: 0.25rem;
+}
+
+.glance-itinerary-gutter {
+    flex: 0 0 3px;
+    margin-right: 0.75rem;
+    border-radius: 3px;
+    background: linear-gradient(180deg, var(--ink-strong) 0%, var(--gold) 100%);
+}
+
+.glance-itinerary-body {
+    flex: 1;
+    min-width: 0;
+    padding: 1rem 1.1rem 1.2rem;
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: 12px;
+}
+
+.glance-itinerary-rule {
+    width: 44px;
+    height: 2px;
+    margin-bottom: 0.7rem;
+    background: var(--gold);
+}
+
+.glance-itinerary-heading {
+    margin: 0;
+    color: var(--ink-strong);
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.glance-itinerary-subheading {
+    margin: 0.2rem 0 0.9rem;
+    color: var(--ink-faint);
+    font-size: 0.75rem;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+}
+
+.glance-itinerary-text {
+    margin: 0;
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 0.86rem;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.glance-itinerary-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1.1rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--hairline);
+}
+
+.glance-itinerary-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 38px;
+    padding: 0.5rem 0.9rem;
+    background: transparent;
+    border: 1px solid var(--hairline);
+    border-radius: 9px;
+    color: var(--ink-muted);
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+    .glance-itinerary-button:hover:not(:disabled) {
+        border-color: var(--ink-strong);
+        color: var(--ink-strong);
+    }
+
+.glance-itinerary-primary {
+    background: var(--ink-strong);
+    border-color: var(--ink-strong);
+    color: var(--gold);
+}
+
+    .glance-itinerary-primary:hover:not(:disabled) {
+        background: #1E3A5F;
+        border-color: var(--ink-strong);
+        color: var(--gold);
+    }

@@ -123,6 +123,7 @@ public sealed class ChatHistoryService : IChatHistoryService
         return message.IsFavorite;
     }
 
+    /// <summary>Every bookmarked message, newest first, with the day each belongs to.</summary>
     public async Task<IReadOnlyList<ChatMessageEntity>> GetFavoritesAsync(CancellationToken cancellationToken = default)
     {
         await using var context = await _contextFactory
@@ -137,6 +138,27 @@ public sealed class ChatHistoryService : IChatHistoryService
             .Include(message => message.Session)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    /// <summary>Today's bookmarked answers only, oldest first, with the day they belong to.</summary>
+    public async Task<IReadOnlyList<ChatMessageEntity>> GetFavoritesForCurrentSessionAsync(CancellationToken cancellationToken = default)
+    {
+        await using var context = await _contextFactory
+            .CreateDbContextAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var today = DateOnly.FromDateTime(DateTime.Now);
+
+        var result = await context.ChatMessages
+            .AsNoTracking()
+            .Where(message => message.IsFavorite && message.Session != null && message.Session.Date == today)
+            .OrderBy(message => message.Timestamp)
+            .ThenBy(message => message.Id)
+            .Include(message => message.Session)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return result;
     }
 
     public async Task<IReadOnlyList<ChatSession>> GetSessionsAsync(CancellationToken cancellationToken = default)

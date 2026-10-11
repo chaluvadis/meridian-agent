@@ -2,6 +2,7 @@ namespace MeridianAgent.Tests;
 
 using MeridianAgent.Domain.Entities;
 
+using MeridianAgent.Infrastructure.AI;
 using MeridianAgent.Infrastructure.AI.Agents;
 
 /// <summary>
@@ -386,5 +387,109 @@ public class CompromiseConsistencyTests
         Assert.Equal(2, client.Calls.Count);
         Assert.Contains(hedge, client.Calls[1].Prompt);
         Assert.Equal("It is 15 mins away instead of your preferred 10 mins", Assert.Single(itinerary.Venues).Compromise);
+    }
+}
+
+/// <summary>
+/// The itinerary is compiled from what the traveler saved, not from what the agent thinks would
+/// fill a day. Empty saves and empty answers both have to come back as "nothing", because a model
+/// asked to plan an empty day will happily invent one.
+/// </summary>
+public class ItineraryExportTests
+{
+    private static readonly DateTime Stamp = new(2026, 10, 12, 12, 0, 0, DateTimeKind.Local);
+
+    private static ChatMessage Saved(string content) =>
+        new("saved-1", "assistant", content, Stamp, MessageType.Reactive, null, 1, true);
+
+    [Fact]
+    public async Task GenerateItineraryAsync_CompilesEverySavedMessage()
+    {
+        var agent = new ScriptedSynthesizer("Day 1 in Dubai.");
+        var saved = new[]
+        {
+            Saved("Top pick: Karak House for tea."),
+            Saved("The Al Fahidi walk is lovely at 16:00."),
+        };
+
+        var itinerary = await agent.GenerateItineraryAsync(TestData.Profile, saved);
+
+        Assert.Equal("Day 1 in Dubai.", itinerary);
+        Assert.Equal(2, agent.ItineraryInput?.Count);
+    }
+
+    [Fact]
+    public async Task TheItineraryIsNeverAskedForWhenNothingIsSaved()
+    {
+        // The real agent, so the guard itself is what is under test: a model asked to plan an
+        // empty day will invent one.
+        var client = new ScriptedLlmClient("Day 1 in Dubai.");
+        var agent = new SynthesizerAgent(client, NullLogger<SynthesizerAgent>.Instance);
+
+        var itinerary = await agent.GenerateItineraryAsync(TestData.Profile, Array.Empty<ChatMessage>());
+
+        Assert.Empty(client.Calls);
+        Assert.Equal(string.Empty, itinerary);
+    }
+
+    [Fact]
+    public async Task TheItineraryPromptAsksForOnlyWhatWasSaved()
+    {
+        var client = new ScriptedLlmClient("Day 1 in Dubai.");
+        var agent = new SynthesizerAgent(client, NullLogger<SynthesizerAgent>.Instance);
+
+        await agent.GenerateItineraryAsync(
+            TestData.Profile,
+            new[] { Saved("Top pick: Karak House for tea.") });
+
+        var prompt = client.Calls[0].Prompt;
+        Assert.Contains("traveler_profile", prompt);
+        Assert.Contains("Top pick: Karak House for tea.", prompt);
+        Assert.Contains("Do not add places, restaurants, or", prompt);
+        Assert.Contains("Pro-Tip", prompt);
+    }
+
+    /// <summary>Captures the prompt the itinerary request was actually asked with.</summary>
+    private sealed class ScriptedSynthesizer : ISynthesizerAgent
+    {
+        private readonly string _reply;
+
+        public ScriptedSynthesizer(string reply) => _reply = reply;
+
+        public List<ChatMessage>? ItineraryInput { get; private set; }
+
+        public int ItineraryCalls { get; private set; }
+
+        public string AgentName => "SynthesizerAgent";
+
+        public IAsyncEnumerable<string> StreamAsync(SynthesisRequest request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<string> CompleteAsync(SynthesisRequest request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<SynthesisResponse> SynthesizeAsync(SynthesisRequest request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<string> ExecuteProactiveAsync(
+            IReadOnlyList<ProactiveSuggestion> suggestions,
+            ProactiveRequest request,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<string> ExecuteWelcomeAsync(UserProfile profile, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<string> GenerateItineraryAsync(
+            UserProfile profile,
+            IReadOnlyList<ChatMessage> savedMessages,
+            CancellationToken cancellationToken = default)
+        {
+            ItineraryCalls++;
+            ItineraryInput = savedMessages.ToList();
+            return Task.FromResult(_reply);
+        }
+
+        public Task<string> ExecuteWeatherPivotAsync(WeatherPivot pivot, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 }

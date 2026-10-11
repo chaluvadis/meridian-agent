@@ -255,6 +255,26 @@ public class ChatHistoryServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GetFavoritesForCurrentSessionAsync_ReturnsOnlyWhatWasSavedToday()
+    {
+        var service = CreateService();
+        await service.SaveMessageAsync(Message("assistant", "Saved today.", At(11, 0)));
+        var lastWeek = await SeedSessionAsync(Today.AddDays(-7));
+        await service.SaveMessageAsync(Message("assistant", "Saved last week.", At(11, 0), lastWeek));
+
+        var savedTodayId = (await service.GetMessagesForSessionAsync((await service.GetCurrentSessionAsync()).Id))[0].Id;
+        var savedOlderId = (await service.GetMessagesForSessionAsync(lastWeek))[0].Id;
+        await service.ToggleFavoriteAsync(savedTodayId);
+        await service.ToggleFavoriteAsync(savedOlderId);
+
+        // The itinerary reads this one: last week's souks are not part of today's plan.
+        var forToday = await service.GetFavoritesForCurrentSessionAsync();
+
+        Assert.Equal("Saved today.", Assert.Single(forToday).Content);
+        Assert.Equal(2, (await service.GetFavoritesAsync()).Count);
+    }
+
+    [Fact]
     public async Task GetMessagesForSessionAsync_IsEmptyForADayThatDoesNotExist()
     {
         var service = CreateService();

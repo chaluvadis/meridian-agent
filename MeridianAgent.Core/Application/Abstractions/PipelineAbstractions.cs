@@ -53,7 +53,40 @@ public interface ISynthesizerAgent
     /// preferences the agent now knows about. Used once, right after onboarding.
     /// </summary>
     Task<string> ExecuteWelcomeAsync(UserProfile profile, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Compiles the messages a traveler saved into one itinerary for the day. Empty when nothing is
+    /// saved, because an itinerary is built from what was asked for, never invented.
+    /// </summary>
+    Task<string> GenerateItineraryAsync(
+        UserProfile profile,
+        IReadOnlyList<ChatMessage> savedMessages,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Tells the traveler the weather has turned against a plan they saved.</summary>
+    Task<string> ExecuteWeatherPivotAsync(WeatherPivot pivot, CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// What the weather has done to a saved plan: the conditions, the outdoor stop it now threatens,
+/// and the indoor places that may be offered instead. The available options are passed in rather
+/// than looked up here, so the agent cannot invent a venue to rescue the plan.
+/// </summary>
+/// <param name="Condition">The weather as it reads to a person ("Thunderstorm").</param>
+/// <param name="TemperatureC">Temperature in Celsius at the traveler's location.</param>
+/// <param name="IsRaining">Whether rain is falling now.</param>
+/// <param name="LocalTime">The hour at the destination, which is what the alert names.</param>
+/// <param name="Location">Where the weather was read.</param>
+/// <param name="SavedPlanSummary">What the traveler saved, in the words the alert refers back to.</param>
+/// <param name="IndoorOptions">Sheltered places nearby, already known to fit their constraints.</param>
+public sealed record WeatherPivot(
+    string Condition,
+    double TemperatureC,
+    bool IsRaining,
+    string LocalTime,
+    string Location,
+    string SavedPlanSummary,
+    IReadOnlyList<string> IndoorOptions);
 
 /// <summary>Generates unprompted suggestions from the traveler's profile, context, and nearby venues.</summary>
 public interface IProactiveSuggestionAgent
@@ -71,7 +104,24 @@ public interface IProactiveSuggestionAgent
 /// </summary>
 public interface IProactiveChatNotifier
 {
+    /// <summary>The names the chat uses to tell one kind of agent-initiated message from another.</summary>
+    public static class Kinds
+    {
+        /// <summary>An unprompted idea, offered because the traveler has been quiet.</summary>
+        public const string Suggestion = "suggestion";
+
+        /// <summary>A saved plan now conflicts with the weather.</summary>
+        public const string WeatherPivot = "weatherPivot";
+    }
+
     Task PublishAsync(string messageId, string content, CancellationToken cancellationToken = default);
+
+    /// <summary>Publishes with an explicit <see cref="Kinds"/> tag.</summary>
+    Task PublishAsync(
+        string messageId,
+        string content,
+        string kind,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>Tracks recent traveler interaction so proactive messages only go to an engaged session.</summary>

@@ -182,7 +182,7 @@ public class ChatMessageCodecTests
         var block = Assert.Single(rich!.Blocks);
         Assert.Equal(RichBlockKind.List, block.Kind);
         Assert.Equal("Karak House", block.Text);
-        Assert.Equal("Cafe · 6 min away", block.Detail);
+        Assert.Equal("Cafe · Indoor · 6 min away", block.Detail);
     }
 
     [Fact]

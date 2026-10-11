@@ -191,6 +191,55 @@ public sealed class SynthesizerAgent(
 
     public override string SanitizerModel { get; } = DefaultModel;
 
+    /// <summary>
+    /// The one message that matters after the day: what was saved, in the order it happens, with
+    /// the reason it was chosen and one tip for the day. Compiled only from what the traveler
+    /// actually favorited — an itinerary containing places they did not ask for is a lie about
+    /// their own trip.
+    /// </summary>
+    private const string ItineraryPrompt = """
+        You are compiling a daily travel itinerary from the messages a traveler saved.
+
+        Extract every venue, activity, and time mentioned in the saved messages below and put them
+        into one clean, chronological, hour-by-hour itinerary.
+
+        OUTPUT RULES:
+        1. One heading line naming the day and the city.
+        2. Each entry: the time (inferred from context when none was stated), the place or activity,
+           and one sentence on WHY it was chosen based on this traveler's profile.
+        3. A "Pro-Tip" for the day — best time to leave, what to wear, how to get between the places.
+        4. Only what the saved messages actually contain. Do not add places, restaurants, or
+           activities that are not in them. Where no time was given, say so rather than inventing
+           a schedule.
+        5. Never claim a venue is open, cheap, or nearby unless a saved message said so.
+        6. Plain text with clear headings and bullet points. No markdown, no code blocks.
+        """;
+
+    /// <summary>
+    /// A saved plan has run into the weather. Urgent but calm: the alert, what it does to the plan,
+    /// and the way out — in that order, before the traveler has noticed anything themselves.
+    /// </summary>
+    private const string WeatherPivotPrompt = """
+        You must warn a traveler, urgently but calmly, that the weather now conflicts with a plan
+        they saved.
+
+        Tone: urgent, helpful, proactive. Never alarmist, never dramatic. You are a concierge
+        telling them before they walk out the door, not a warning system.
+
+        Structure, in this order:
+        1. THE ALERT: "Heads up: [weather condition] is starting at [time]."
+        2. THE IMPACT: "This will affect your plan to visit [venue]."
+        3. THE PIVOT: name an indoor alternative from the nearby list — never invent one — and
+           offer it: "I've found a great indoor spot nearby: [venue]. Want to switch?"
+
+        OUTPUT RULES:
+        - Two or three short sentences. No markdown, no bullet points, no preamble.
+        - Never say "I'm sorry", and never lecture about the weather.
+        - If there is no indoor alternative in the nearby list, say the plan needs to move indoors
+          and ask what they would like to do instead — do not invent a venue.
+        - Always end by asking whether to switch.
+        """;
+
     public IAsyncEnumerable<string> StreamAsync(
         SynthesisRequest request,
         CancellationToken cancellationToken = default)
@@ -212,6 +261,103 @@ public sealed class SynthesizerAgent(
         }
 
         return builder.ToString();
+    }
+
+    /// <summary>
+    /// Compiles the traveler's saved answers into one day-by-day itinerary. Returns empty when
+    /// nothing is saved, so the panel can stay quiet rather than asking a model to invent a day.
+    /// </summary>
+    public async Task<string> GenerateItineraryAsync(
+        UserProfile profile,
+        IReadOnlyList<ChatMessage> savedMessages,
+        CancellationToken cancellationToken = default)
+    {
+        if (savedMessages.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var interests = profile.CoreInterests.Count > 0 ? profile.CoreInterests : profile.Interests;
+
+        var prompt = $"""
+            {ItineraryPrompt}
+
+            <traveler_profile>
+            Traveler: {profile.DisplayName}
+            Destination: {profile.Destination}
+            Home base: {profile.HomeBase}
+            Travel style: {profile.TravelStyle}
+            Interests: {string.Join(", ", interests)}
+            Dietary: {string.Join(", ", profile.DietaryRules)}
+            Avoid: {string.Join(", ", profile.AvoidList)}
+            </traveler_profile>
+
+            <saved_messages>
+            {string.Join("\n\n---\n\n", savedMessages.Select((message, index) => $"[Saved {index + 1}]\n{message.Content}"))}
+            </saved_messages>
+            """;
+
+        var itinerary = await RunPlainAsync(prompt, cancellationToken).ConfigureAwait(false);
+
+        Logger.LogInformation(
+            "Compiled itinerary from {SavedCount} saved message(s) ({WordCount} words)",
+            savedMessages.Count,
+            itinerary.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length);
+
+        return itinerary;
+    }
+
+    /// <summary>
+    /// Tells the traveler, before they leave, that the weather has turned against something they
+    /// saved. <paramref name="indoorOptions"/> is what the model may offer instead — it never
+    /// invents a venue from nothing.
+    /// </summary>
+    public async Task<string> ExecuteWeatherPivotAsync(
+        WeatherPivot pivot,
+        CancellationToken cancellationToken = default)
+    {
+        var prompt = $"""
+            {WeatherPivotPrompt}
+
+            <alert>
+            Weather: {pivot.Condition} ({(pivot.IsRaining ? string.Format("{0:0}°C, rain falling", pivot.TemperatureC) : string.Format("{0:0}°C", pivot.TemperatureC))})
+            Local time: {pivot.LocalTime}
+            Place: {pivot.Location}
+            </alert>
+
+            <saved_plan>
+            {(string.IsNullOrWhiteSpace(pivot.SavedPlanSummary) ? "The traveler saved a plan that includes an outdoor stop." : pivot.SavedPlanSummary)}
+            </saved_plan>
+
+            <indoor_options>
+            {string.Join("\n", pivot.IndoorOptions.Select(venue => $"- {venue}"))}
+            </indoor_options>
+            """;
+
+        var message = await RunPlainAsync(prompt, cancellationToken).ConfigureAwait(false);
+
+        Logger.LogInformation(
+            "Synthesized weather pivot for {Condition} at {LocalTime} ({WordCount} words)",
+            pivot.Condition,
+            pivot.LocalTime,
+            message.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length);
+
+        return message;
+    }
+
+    /// <summary>One plain-text answer from the model, trimmed, with nothing structured about it.</summary>
+    private async Task<string> RunPlainAsync(string prompt, CancellationToken cancellationToken)
+    {
+        var builder = new StringBuilder();
+
+        await foreach (var token in Client
+            .StreamAsync(new LlmRequest(Model, prompt, JsonMode: false, Temperature: 0.7), cancellationToken)
+            .ConfigureAwait(false))
+        {
+            builder.Append(token);
+        }
+
+        return builder.ToString().Trim();
     }
 
     public async Task<string> ExecuteProactiveAsync(

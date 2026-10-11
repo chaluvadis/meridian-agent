@@ -5,6 +5,9 @@
 @inject IChatHistoryService History
 @inject ChatState ChatState
 @inject IDialogService Dialogs
+@inject ISynthesizerAgent Synthesizer
+@inject IUserProfileService ProfileService
+@inject IJSRuntime JSRuntime
 
 @*
     "Glance" is the anti-scroll view: everything the traveler saved, and everything they said, day
@@ -36,32 +39,87 @@
 
         <MudTabs Rounded="true" Elevation="0" Class="glance-tabs" TabPanelsClass="glance-tab-panels">
             <MudTabPanel Text="Saved" Style="font-family: inherit;">
-                @if (_favorites.Count == 0)
+                @if (_itinerary is not null)
                 {
-                    <div class="glance-empty">
-                        <MudIcon Icon="@Icons.Material.Filled.FavoriteBorder" Class="glance-empty-icon" />
-                        <p>Nothing saved yet.</p>
-                        <p class="glance-empty-hint">Tap the heart under an answer you want to keep an eye on.</p>
+                    @* The compiled day, set like a printed document: this is the thing worth
+                       reading carefully, and the only place in the app that asks to be. *@
+                    <div class="glance-itinerary">
+                        <div class="glance-itinerary-gutter" aria-hidden="true"></div>
+
+                        <div class="glance-itinerary-body">
+                            <div class="glance-itinerary-rule"></div>
+
+                            <h3 class="glance-itinerary-heading">Your day, compiled</h3>
+                            <p class="glance-itinerary-subheading">@_itinerarySubtitle</p>
+
+                            <pre class="glance-itinerary-text">@_itinerary</pre>
+
+                            <div class="glance-itinerary-actions">
+                                <button class="glance-itinerary-button glance-itinerary-primary"
+                                        disabled="@_compiling"
+                                        @onclick="CopyItineraryAsync">
+                                    <MudIcon Icon="@(_copied ? Icons.Material.Filled.Check : Icons.Material.Filled.ContentCopy)"
+                                             Size="Size.Small" />
+                                    @(_copied ? "Copied" : "Copy to clipboard")
+                                </button>
+                                <button class="glance-itinerary-button" disabled="@_compiling" @onclick="DiscardItineraryAsync">
+                                    Back to saved
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 }
                 else
                 {
-                    <ul class="glance-favorites">
-                        @foreach (var favorite in _favorites)
-                        {
-                            <li class="glance-favorite">
-                                <div class="glance-favorite-meta">
-                                    <span class="glance-favorite-day">@favorite.DayLabel</span>
-                                    <span class="glance-favorite-time">@favorite.Stamp</span>
-                                </div>
-                                <p class="glance-favorite-preview">@favorite.Preview</p>
-                            <button class="glance-favorite-view"
-                                    @onclick="() => OpenAsync(favorite)">
-                                View
-                            </button>
-                            </li>
-                        }
-                    </ul>
+                    <div class="glance-itinerary-launch">
+                        <button class="glance-compile"
+                                disabled="@(_favorites.Count == 0 || _compiling)"
+                                @onclick="CompileItineraryAsync">
+                            @if (_compiling)
+                            {
+                                <span class="glance-compile-spinner" aria-hidden="true"></span>
+                                <span>Compiling your day…</span>
+                            }
+                            else
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" Size="Size.Small" />
+                                <span>Compile Itinerary</span>
+                            }
+                        </button>
+                        <p class="glance-compile-hint">
+                            @(_favorites.Count == 0
+                                ? "Save a few answers and I will lay them out as a day."
+                                : $"Built from the {_favorites.Count} answer{(_favorites.Count == 1 ? "" : "s")} you saved today.")
+                        </p>
+                    </div>
+
+                    @if (_favorites.Count == 0)
+                    {
+                        <div class="glance-empty">
+                            <MudIcon Icon="@Icons.Material.Filled.FavoriteBorder" Class="glance-empty-icon" />
+                            <p>Nothing saved yet.</p>
+                            <p class="glance-empty-hint">Tap the heart under an answer you want to keep an eye on.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <ul class="glance-favorites">
+                            @foreach (var favorite in _favorites)
+                            {
+                                <li class="glance-favorite">
+                                    <div class="glance-favorite-meta">
+                                        <span class="glance-favorite-day">@favorite.DayLabel</span>
+                                        <span class="glance-favorite-time">@favorite.Stamp</span>
+                                    </div>
+                                    <p class="glance-favorite-preview">@favorite.Preview</p>
+                                <button class="glance-favorite-view"
+                                        @onclick="() => OpenAsync(favorite)">
+                                    View
+                                </button>
+                                </li>
+                            }
+                        </ul>
+                    }
                 }
             </MudTabPanel>
 
@@ -111,6 +169,10 @@
     private List<FavoriteRow> _favorites = new();
     private List<DayRow> _days = new();
     private readonly DateOnly _today = DateOnly.FromDateTime(DateTime.Now);
+    private string? _itinerary;
+    private string _itinerarySubtitle = string.Empty;
+    private bool _compiling;
+    private bool _copied;
 
     private string _subtitle => _days.Count == 0
         ? "Nothing saved, no days yet"
@@ -235,4 +297,75 @@
     }
 
     private Task HideAsync() => VisibleChanged.InvokeAsync(false);
+
+    /// <summary>
+    /// Lays the answers saved today out as a single day. Only today's saves are used: an itinerary
+    /// spanning last week's souks and yesterday's dinner is not a plan for anything.
+    /// </summary>
+    private async Task CompileItineraryAsync()
+    {
+        if (_compiling || _favorites.Count == 0)
+        {
+            return;
+        }
+
+        _compiling = true;
+        await Task.Yield();
+
+        try
+        {
+            var saved = await History.GetFavoritesForCurrentSessionAsync();
+            var messages = saved.Select(ChatMessageCodec.ToDomain).ToList();
+
+            if (messages.Count == 0)
+            {
+                _itinerary = null;
+                return;
+            }
+
+            var profile = await ProfileService.GetProfileAsync(IUserProfileService.DefaultProfileId)
+                ?? UserProfile.Default;
+
+            var itinerary = await Synthesizer.GenerateItineraryAsync(profile, messages);
+
+            _itinerary = string.IsNullOrWhiteSpace(itinerary) ? null : itinerary;
+            _itinerarySubtitle = _itinerary is null
+                ? string.Empty
+                : $"{_today.ToString("dddd, MMMM d")} · {messages.Count} saved answer{(messages.Count == 1 ? "" : "s")}";
+            _copied = false;
+        }
+        catch (Exception)
+        {
+            // The model is having a moment. The saved list is untouched, so trying again is free.
+            _itinerary = null;
+        }
+        finally
+        {
+            _compiling = false;
+        }
+    }
+
+    private async Task CopyItineraryAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_itinerary))
+        {
+            return;
+        }
+
+        try
+        {
+            await JSRuntime.InvokeAsync<bool>("copyTextToClipboard", _itinerary);
+            _copied = true;
+        }
+        catch (JSException)
+        {
+            // The browser refused to copy; the text is on screen and can be selected by hand.
+        }
+    }
+
+    private void DiscardItineraryAsync()
+    {
+        _itinerary = null;
+        _copied = false;
+    }
 }

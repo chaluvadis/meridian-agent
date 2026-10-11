@@ -26,10 +26,21 @@ public class ProactiveSuggestionSchedulerTests
             [typeof(ITravelContextProvider)] = contextProvider ?? new StubTravelContextProvider(),
         };
 
+        // The pivot service is driven by the same weather stub the suggestion path uses, so a weather
+        // alarm is only ever produced in these tests when the stub says the weather has turned.
+        var pivots = new WeatherPivotService(
+            new StubScopeFactory(new StubServiceProvider(services)),
+            notifier,
+            new SignatureCooldown(TimeSpan.FromHours(4)),
+            Options.Create(new WeatherPivotOptions()),
+            NullLogger<WeatherPivotService>.Instance);
+
         return new ProactiveSuggestionScheduler(
             new StubScopeFactory(new StubServiceProvider(services)),
             notifier,
             activity,
+            new SignatureCooldown(TimeSpan.FromHours(4)),
+            pivots,
             Options.Create(options),
             NullLogger<ProactiveSuggestionScheduler>.Instance);
     }

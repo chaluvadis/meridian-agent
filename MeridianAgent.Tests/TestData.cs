@@ -223,6 +223,18 @@ public sealed class FakeSynthesizerAgent : ISynthesizerAgent
 
     public string[] Chunks { get; set; } = new[] { "Top ", "pick: ", "Karak House." };
 
+    /// <summary>Text <see cref="GenerateItineraryAsync" /> returns.</summary>
+    public string ItineraryResult { get; set; } = "Day 1 in Dubai.\n\n12:00 — Karak House.";
+
+    /// <summary>Text <see cref="ExecuteWeatherPivotAsync" /> returns.</summary>
+    public string PivotResult { get; set; } = "Heads up: rain is starting at 16:00. This will affect your rooftop plan.";
+
+    /// <summary>What was last asked to be compiled, or null when it was never called.</summary>
+    public List<ChatMessage>? ItineraryInput { get; private set; }
+
+    /// <summary>What the pivot was told about the weather, or null when it was never called.</summary>
+    public WeatherPivot? PivotInput { get; private set; }
+
     public IAsyncEnumerable<string> StreamAsync(SynthesisRequest request, CancellationToken cancellationToken = default)
     {
         Requests.Add(request);
@@ -314,6 +326,21 @@ public sealed class FakeSynthesizerAgent : ISynthesizerAgent
         await Task.Yield();
         return SynthesisResult;
     }
+
+    public Task<string> GenerateItineraryAsync(
+        UserProfile profile,
+        IReadOnlyList<ChatMessage> savedMessages,
+        CancellationToken cancellationToken = default)
+    {
+        ItineraryInput = savedMessages.ToList();
+        return Task.FromResult(ItineraryResult);
+    }
+
+    public Task<string> ExecuteWeatherPivotAsync(WeatherPivot pivot, CancellationToken cancellationToken = default)
+    {
+        PivotInput = pivot;
+        return Task.FromResult(PivotResult);
+    }
 }
 
 public sealed class FakeProactiveSuggestionAgent : IProactiveSuggestionAgent
@@ -366,11 +393,16 @@ public sealed class RecordingChatNotifier : IProactiveChatNotifier
     private readonly TaskCompletionSource _pushed =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    public List<(string MessageId, string Content)> Published { get; } = new();
+    public List<(string MessageId, string Content, string Kind)> Published { get; } = new();
 
     public Task PublishAsync(string messageId, string content, CancellationToken cancellationToken = default)
     {
-        Published.Add((messageId, content));
+        return PublishAsync(messageId, content, IProactiveChatNotifier.Kinds.Suggestion, cancellationToken);
+    }
+
+    public Task PublishAsync(string messageId, string content, string kind, CancellationToken cancellationToken = default)
+    {
+        Published.Add((messageId, content, kind));
         _pushed.TrySetResult();
         return Task.CompletedTask;
     }
@@ -488,4 +520,45 @@ public sealed class StubTravelContextProvider : ITravelContextProvider
 
         return Task.FromResult(Context);
     }
+}
+
+/// <summary>
+/// Stands in for the history store when a test only needs to say what is bookmarked today. Only
+/// the members the pivot check reads are wired to anything; the rest are unreachable by design.
+/// </summary>
+public sealed class StubChatHistoryService : IChatHistoryService
+{
+    public IReadOnlyList<ChatMessageEntity> FavoritesForToday { get; set; } = Array.Empty<ChatMessageEntity>();
+
+    public IReadOnlyList<ChatMessageEntity> Favorites { get; set; } = Array.Empty<ChatMessageEntity>();
+
+    public IReadOnlyList<ChatMessageEntity> SessionMessages { get; set; } = Array.Empty<ChatMessageEntity>();
+
+    public ChatSession Session { get; set; } = new() { Date = DateOnly.FromDateTime(DateTime.Now), DayNumber = 1 };
+
+    public int SavedCount { get; private set; }
+
+    public Task<ChatSession> GetCurrentSessionAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(Session);
+
+    public Task<ChatMessageEntity> SaveMessageAsync(ChatMessageEntity message, CancellationToken cancellationToken = default)
+    {
+        SavedCount++;
+        message.Id = SavedCount;
+        return Task.FromResult(message);
+    }
+
+    public Task<bool?> ToggleFavoriteAsync(int messageId, CancellationToken cancellationToken = default) => Task.FromResult<bool?>(null);
+
+    public Task<IReadOnlyList<ChatMessageEntity>> GetFavoritesAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(Favorites);
+
+    public Task<IReadOnlyList<ChatMessageEntity>> GetFavoritesForCurrentSessionAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(FavoritesForToday);
+
+    public Task<IReadOnlyList<ChatSession>> GetSessionsAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<ChatSession>>(new[] { Session });
+
+    public Task<IReadOnlyList<ChatMessageEntity>> GetMessagesForSessionAsync(int sessionId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(SessionMessages);
 }

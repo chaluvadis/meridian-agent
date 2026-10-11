@@ -11,19 +11,24 @@ public sealed class ProactiveSuggestionScheduler : BackgroundService
     private readonly IProactiveChatNotifier _notifier;
     private readonly IChatActivityTracker _activity;
     private readonly ProactiveSuggestionsOptions _options;
+    private readonly SignatureCooldown _cooldown;
+    private readonly WeatherPivotService _weatherPivots;
     private readonly ILogger<ProactiveSuggestionScheduler> _logger;
-    private readonly List<RecentSuggestion> _recentSignatures = new();
 
     public ProactiveSuggestionScheduler(
         IServiceScopeFactory scopeFactory,
         IProactiveChatNotifier notifier,
         IChatActivityTracker activity,
+        SignatureCooldown cooldown,
+        WeatherPivotService weatherPivots,
         IOptions<ProactiveSuggestionsOptions> options,
         ILogger<ProactiveSuggestionScheduler> logger)
     {
         _scopeFactory = scopeFactory;
         _notifier = notifier;
         _activity = activity;
+        _cooldown = cooldown;
+        _weatherPivots = weatherPivots;
         _options = options.Value;
         _logger = logger;
     }
@@ -90,10 +95,14 @@ public sealed class ProactiveSuggestionScheduler : BackgroundService
             return;
         }
 
-        if (await GenerateAndPublishAsync(cancellationToken).ConfigureAwait(false))
+        // Weather first: a plan that needs sheltering is the one interruption worth making, so it
+        // pre-empts the suggestion cycle rather than competing with it for the same round.
+        if (await _weatherPivots.TryPublishPivotAsync(cancellationToken).ConfigureAwait(false))
         {
             return;
         }
+
+        await GenerateAndPublishAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<bool> GenerateAndPublishAsync(CancellationToken cancellationToken)
@@ -152,7 +161,7 @@ public sealed class ProactiveSuggestionScheduler : BackgroundService
         }
 
         var signature = string.Join('|', confident.Select(s => s.Title.Trim().ToLowerInvariant()));
-        if (IsOnCooldown(signature))
+        if (_cooldown.IsOnCooldown(signature))
         {
             _logger.LogDebug("Recent suggestions are on cooldown");
             return false;
@@ -178,7 +187,7 @@ public sealed class ProactiveSuggestionScheduler : BackgroundService
 
         var messageId = Guid.NewGuid().ToString();
         await _notifier.PublishAsync(messageId, message, cancellationToken).ConfigureAwait(false);
-        Remember(signature);
+        _cooldown.Remember(signature);
         _logger.LogInformation(
             "Pushed proactive suggestion to chat: {MessageId} ({SuggestionCount} idea(s))",
             messageId,
@@ -187,24 +196,4 @@ public sealed class ProactiveSuggestionScheduler : BackgroundService
         return true;
     }
 
-    private bool IsOnCooldown(string signature)
-    {
-        PruneRecentSignatures();
-        return _recentSignatures.Any(entry =>
-            string.Equals(entry.Signature, signature, StringComparison.Ordinal));
-    }
-
-    private void Remember(string signature)
-    {
-        PruneRecentSignatures();
-        _recentSignatures.Add(new RecentSuggestion(signature, DateTime.UtcNow));
-    }
-
-    private void PruneRecentSignatures()
-    {
-        var cutoff = DateTime.UtcNow - TimeSpan.FromHours(Math.Clamp(_options.CooldownHours, 0.05, 168));
-        _recentSignatures.RemoveAll(entry => entry.AtUtc < cutoff);
-    }
-
-    private sealed record RecentSuggestion(string Signature, DateTime AtUtc);
 }

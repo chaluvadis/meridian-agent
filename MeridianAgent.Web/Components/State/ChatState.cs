@@ -107,14 +107,14 @@ public sealed class ChatState
     }
 
     /// <summary>Adds an agent-initiated message that arrived over the chat hub while nobody asked.</summary>
-    public void AddProactive(string messageId, string content)
+    public void AddProactive(string messageId, string content, MessageType type = MessageType.Proactive)
     {
         _messages.Add(new ChatMessage(
             messageId,
             "assistant",
             content,
             DateTime.Now,
-            MessageType.Proactive));
+            type));
         NotifyChanged();
     }
 

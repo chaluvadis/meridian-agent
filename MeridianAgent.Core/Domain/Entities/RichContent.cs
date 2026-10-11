@@ -26,10 +26,54 @@ public sealed record RichContent(IReadOnlyList<RichBlock> Blocks)
             .Select(venue => new RichBlock(
                 RichBlockKind.List,
                 venue.Name,
-                $"{venue.Category} · {venue.TravelTimeMinutes} min away"))
+                $"{venue.Category} · {venue.VenueType} · {venue.TravelTimeMinutes} min away"))
             .ToArray();
 
         return new RichContent(blocks);
+    }
+}
+
+/// <summary>
+/// The structured elements of a message that need shelter, worked out from what was stored. A
+/// saved plan is only worth a weather warning if it puts the traveler outdoors, and the venue type
+/// was recorded alongside the block precisely so this is a fact rather than a guess at the prose.
+/// </summary>
+public static class OutdoorPlan
+{
+    private static readonly string[] OutdoorWords =
+    {
+        "outdoor", "rooftop", "souk", "beach", "garden", "desert", "park", "promenade", "riverwalk", "walk",
+    };
+
+    /// <summary>
+    /// Whether anything in this content puts the traveler outside. A venue typed outdoor or mixed
+    /// counts; a venue typed indoor never does, so a rainy-day lunch is not a weather alarm.
+    /// </summary>
+    public static bool IsOutdoor(RichContent? content)
+    {
+        if (content is null || content.IsEmpty)
+        {
+            return false;
+        }
+
+        return content.Blocks.Any(block =>
+            block.Kind == RichBlockKind.List &&
+            (MentionsOutdoor(block.Detail) || MentionsOutdoor(block.Text)));
+    }
+
+    /// <summary>
+    /// Whether the prose itself asks to be outside, for messages saved before a venue type was
+    /// stored. Their own words are the only honest basis then.
+    /// </summary>
+    public static bool MentionsOutdoor(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        return OutdoorWords.Any(word =>
+            text.Contains(word, StringComparison.OrdinalIgnoreCase));
     }
 }
 

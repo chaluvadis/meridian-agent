@@ -26,7 +26,14 @@ public sealed record ChatMessage(
 /// </summary>
 public enum MessageType
 {
+    /// <summary>An answer to something the traveler asked.</summary>
     Reactive,
+
+    /// <summary>An unprompted idea, offered because the traveler has been quiet.</summary>
     Proactive,
+
+    /// <summary>A saved plan now conflicts with the weather, and the agent is saying so first.</summary>
+    WeatherPivot,
+
     System,
 }

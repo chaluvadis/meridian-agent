@@ -81,7 +81,7 @@ public class TravelQueryOrchestratorTests
     [Fact]
     public async Task StreamAsync_YieldsGracefulMessageWhenSearchAgentFails()
     {
-        var search = new FakeSearchAgent { Error = new InvalidOperationException("ollama down") };
+        var search = new FakeSearchAgent { Error = new InvalidOperationException("OpenAI returned HTTP 401") };
         var synthesizer = new FakeSynthesizerAgent();
         var orchestrator = CreateOrchestrator(searchAgent: search, synthesizerAgent: synthesizer);
 

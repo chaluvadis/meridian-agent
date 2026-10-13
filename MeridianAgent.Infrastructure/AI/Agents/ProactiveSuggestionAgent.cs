@@ -2,16 +2,15 @@ namespace MeridianAgent.Infrastructure.AI.Agents;
 
 /// <summary>
 /// The unprompted counterpart of the pipeline: reads the traveler's profile, the live context, and the
-/// venues around them, then proposes 0-3 ideas worth surfacing without being asked. Model: qwen2.5:3b
-/// (same as the Search Agent — it is a data-reduction plus judgment task).
+/// venues around them, then proposes 0-3 ideas worth surfacing without being asked. Model: gpt-4o-mini.
 /// </summary>
 public sealed class ProactiveSuggestionAgent(
-    ILlmClient client,
+    IChatClient chatClient,
     ILogger<ProactiveSuggestionAgent> logger,
-    string? model = null,
-    string? sanitizerModel = null) : AgentBase(client, logger, model ?? DefaultModel), IProactiveSuggestionAgent
+    IOptions<AiOptions>? aiOptions = null,
+    string? model = null) : AgentBase(chatClient, logger, aiOptions?.Value ?? new AiOptions(), model), IProactiveSuggestionAgent
 {
-    public const string DefaultModel = "qwen2.5:3b";
+    public const string DefaultModel = AiOptions.DefaultModel;
 
     private const string Prompt = """
         You are the intuition engine of The Meridian Agent. The traveler has NOT asked anything — you noticed a good moment and speak first.
@@ -65,8 +64,6 @@ public sealed class ProactiveSuggestionAgent(
         """;
 
     public override string AgentName => "ProactiveSuggestionAgent";
-
-    public override string SanitizerModel { get; } = sanitizerModel ?? DefaultModel;
 
     public Task<IReadOnlyList<ProactiveSuggestion>> GenerateAsync(
         ProactiveRequest request,

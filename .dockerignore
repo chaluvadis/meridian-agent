@@ -6,9 +6,10 @@
 .vs/
 .vscode/
 
-# Local overrides and secrets
+# Local overrides and secrets. .env is NOT force-included: compose reads it from the
+# deploy host, and the image must never contain a copy of the keys in it.
+.env
 .env.*
-!.env
 *.user
 
 # Test results

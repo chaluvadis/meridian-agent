@@ -9,11 +9,24 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8080
-      - Ollama__BaseUrl=http://ollama:11434
-      - Ollama__RequestTimeoutSeconds=300
-      - Ollama__EmbeddingModel=nomic-embed-text
+      # The hosted model: the Kilo AI Gateway (https://kilo.ai/docs/gateway) with a Kilo key.
+      # Set KILO_API_KEY in your .env (or in the Coolify environment panel). One OpenAI-compatible
+      # endpoint, hundreds of models, no local model server and no 4GB of weights in RAM.
+      - AI__ApiKey=${KILO_API_KEY:-}
+      - AI__BaseUrl=${AI_BASE_URL:-https://api.kilo.ai/api/gateway}
+      # Model knobs pass through from .env, so switching chat models really changes what runs.
+      - AI__Model=${AI_MODEL:-anthropic/claude-sonnet-4.6}
+      # Left empty by default: the gateway hosts chat models only, so there are no embeddings and the
+      # safeguard reads the full rulebook. Point AI__EmbeddingModel (and QDRANT__VECTOR_SIZE) at an
+      # embedding model to turn the Qdrant vector search back on.
+      - AI__EmbeddingModel=${AI_EMBEDDING_MODEL:-}
+      - AI__Temperature=${AI_TEMPERATURE:-0.2}
+      - AI__MaxTokens=${AI_MAX_TOKENS:-2048}
+      - AI__RequestTimeoutSeconds=${AI_REQUEST_TIMEOUT_SECONDS:-120}
+      - AI__RetryCount=${AI_RETRY_COUNT:-2}
       - Qdrant__Endpoint=http://qdrant:6333
       - Qdrant__CollectionPrefix=meridian
+      - Qdrant__VectorSize=${QDRANT_VECTOR_SIZE:-1536}
       - ConnectionStrings__Meridian=Data Source=/app/data/meridian.db
       - Weather__BaseUrl=https://api.openweathermap.org
       - Weather__ApiKey=${WEATHER_API_KEY:-}
@@ -25,11 +38,9 @@ services:
       - ./samples:/app/samples
       - meridian-data:/app/data
     depends_on:
-      ollama:
-        condition: service_started
       qdrant:
         condition: service_started
-      # Note: We do NOT depend_on osrm/overpass here because they take 15-30 mins 
+      # Note: We do NOT depend_on osrm/overpass here because they take 15-30 mins
       # to build on first run. Your C# code MUST handle their temporary unavailability gracefully.
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
@@ -38,20 +49,6 @@ services:
       start_period: 60s # Increased start period for .NET boot
       retries: 3
     restart: unless-stopped
-
-  ollama:
-    image: ollama/ollama:latest
-    container_name: meridian-ollama
-    expose:
-      - "11434"
-    volumes:
-      - ollama-models:/root/.ollama
-    restart: unless-stopped
-    # Optional but recommended: limit Ollama's RAM usage if your server is small
-    # deploy:
-    #   resources:
-    #     limits:
-    #       memory: 4G
 
   osrm:
     image: osrm/osrm-backend:latest
@@ -103,31 +100,7 @@ services:
       - qdrant-data:/qdrant/storage
     restart: unless-stopped
 
-  ollama-models-puller:
-    image: ollama/ollama:latest
-    container_name: meridian-ollama-puller
-    depends_on:
-      ollama:
-        condition: service_started
-    volumes:
-      - ollama-models:/root/.ollama
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        echo 'Waiting for Ollama to be ready...';
-        sleep 15; 
-        echo 'Pulling models for The Meridian Agent…';
-        ollama pull qwen2.5:1.5b &&
-        ollama pull qwen2.5:3b &&
-        ollama pull llama3.1:8b &&
-        ollama pull nomic-embed-text;
-        echo 'Model pull finished. This container will now exit.';
-    environment:
-      - OLLAMA_HOST=http://ollama:11434
-    restart: "no"
-
 volumes:
-  ollama-models:
   qdrant-data:
   meridian-data:
   osrm-data:

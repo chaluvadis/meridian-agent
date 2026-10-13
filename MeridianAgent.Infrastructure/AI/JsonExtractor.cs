@@ -132,11 +132,13 @@ public static class JsonExtractor
     /// so the calling agent can react to it.
     /// </summary>
     public static async Task<JsonElement> ExtractWithLlmAsync(
-        ILlmClient client,
+        IChatClient client,
         string sanitizerModel,
         string raw,
         CancellationToken cancellationToken = default,
-        bool allowErrorObject = false)
+        bool allowErrorObject = false,
+        int maxTokens = AiOptions.DefaultMaxTokens,
+        double temperature = AiOptions.DefaultTemperature)
     {
         if (TryExtract(raw, out var document))
         {
@@ -161,10 +163,25 @@ public static class JsonExtractor
             new Dictionary<string, string> { ["RawAgentOutput"] = raw });
 
         var cleaned = await client
-            .CompleteAsync(new LlmRequest(sanitizerModel, sanitizerPrompt, JsonMode: true), cancellationToken)
+            .GetResponseAsync(
+                sanitizerPrompt,
+                new ChatOptions
+                {
+                    ModelId = sanitizerModel,
+                    // The same temperature the agent that called for the repair uses: one knob must
+                    // not produce two behaviors in the same JSON path.
+                    Temperature = (float)temperature,
+                    // A repair that rambles is billed for every token, so it gets the same cap the
+                    // agent calls do — the hosted API treats a missing cap as unlimited.
+                    MaxOutputTokens = maxTokens,
+                    ResponseFormat = ChatResponseFormat.Json,
+                },
+                cancellationToken)
             .ConfigureAwait(false);
 
-        if (TryExtract(cleaned, out var repaired))
+        var cleanedText = cleaned.Text ?? string.Empty;
+
+        if (TryExtract(cleanedText, out var repaired))
         {
             using (repaired)
             {

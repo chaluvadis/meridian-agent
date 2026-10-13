@@ -45,7 +45,23 @@ public class SearchAgentTests
         Assert.Contains("31", prompt);
         Assert.Contains("20:45", prompt);
         Assert.Contains("Karak House", prompt);
-        Assert.Equal("qwen2.5:3b", client.Calls[0].Model);
+        Assert.Equal(AiOptions.DefaultModel, client.Calls[0].Model);
+    }
+
+    [Fact]
+    public async Task ProposeAsync_AsksForTheModelTheConfigurationNames()
+    {
+        // AI__Model is the documented one-line switch: the model on the wire is what answers.
+        var client = new ScriptedLlmClient(
+            """[{"venue_name": "Karak House", "venue_type": "indoor", "category": "cafe"}]""");
+        var agent = new SearchAgent(
+            client,
+            NullLogger<SearchAgent>.Instance,
+            Options.Create(new AiOptions { Model = "google/gemini-2.5-flash" }));
+
+        await agent.ProposeAsync(TestData.Constraints, TestData.Request());
+
+        Assert.Equal("google/gemini-2.5-flash", client.Calls[0].Model);
     }
 
     [Fact]

@@ -7,8 +7,8 @@
 #   ./deploy-local.sh [options]
 #
 # Options:
-#   --keep-models    Keep the ollama-models and qdrant-data volumes (skips the
-#                    multi-GB model re-pull; faster iteration)
+#   --keep-models    Keep the qdrant-data volume (skips re-embedding the rulebooks;
+#                    faster iteration)
 #   --no-cache       Build without Docker's layer cache (slowest, cleanest)
 #   --no-build       Skip the image build, reuse whatever is cached
 #   -l, --logs       Follow the web app logs after startup
@@ -24,7 +24,7 @@ COMPOSE_FILE="docker-compose.yml"
 WEB_IMAGE="meridian-agent-meridian-web"
 HEALTH_PATH="/health"
 HEALTH_TIMEOUT_SECONDS=120
-LOG_PULLER="ollama-models"
+
 
 # --- output helpers ----------------------------------------------------------
 
@@ -111,14 +111,20 @@ if [ "$DRY_RUN" = false ]; then
     timeout 10 docker pull hello-world:latest >/dev/null 2>&1 || true
 fi
 
+if [ "$DRY_RUN" = false ] && [ -z "${KILO_API_KEY:-}" ] && ! grep -q '^[[:space:]]*KILO_API_KEY=[^[:space:]]' .env 2>/dev/null; then
+    die "KILO_API_KEY is not set: the web container fails at startup with an 'AI:ApiKey is missing' error and crash-loops. Get your key at https://app.kilo.ai/profile and export it or add it to .env (see .env.example) — the app has no local model to fall back to."
+fi
+
 # --- confirmation ------------------------------------------------------------
 
 if [ "$ASSUME_YES" = false ] && [ "$DRY_RUN" = false ]; then
     warn "This will stop the Meridian Agent stack, remove its containers and networks,"
     if [ "$KEEP_MODELS" = true ]; then
-        warn "keep the model/data volumes, rebuild the image, and redeploy."
+        warn "keep the qdrant-data volume — its vectors are kept UNLESS the configured"
+        warn "vector size changed, in which case the collections are rebuilt on startup,"
+        warn "rebuild the image, and redeploy."
     else
-        warn "DELETE the ollama-models and qdrant-data volumes (models will be re-pulled),"
+        warn "DELETE the qdrant-data volume (the rulebooks are re-embedded on first run),"
         warn "rebuild the image, and redeploy."
     fi
     printf 'Continue? [y/N] '
@@ -161,7 +167,7 @@ fi
 
 # --- 3. deploy ---------------------------------------------------------------
 
-step "Starting the stack (web + ollama + qdrant)"
+step "Starting the stack (web + qdrant + osrm + overpass)"
 run "${COMPOSE[@]}" -f "$COMPOSE_FILE" up -d --no-build
 
 # --- 4. health ---------------------------------------------------------------
@@ -173,6 +179,9 @@ if [ "$DRY_RUN" = false ]; then
         if [ "$elapsed" -ge "$HEALTH_TIMEOUT_SECONDS" ]; then
             echo
             warn "Health check did not pass within ${HEALTH_TIMEOUT_SECONDS}s. Recent logs:"
+            if [ -z "${KILO_API_KEY:-}" ]; then
+                warn "KILO_API_KEY is not set — the container logs that as 'AI:ApiKey is missing' and restarts."
+            fi
             "${COMPOSE[@]}" -f "$COMPOSE_FILE" logs --tail=40 meridian-web || true
             die "Deployment is unhealthy. Inspect the logs above."
         fi
@@ -197,8 +206,8 @@ if [ "$DRY_RUN" = false ]; then
     echo "  Health:  http://localhost:${WEB_PORT}${HEALTH_PATH}"
     echo
     if [ "$KEEP_MODELS" = false ]; then
-        warn "First run pulls the SLM models (~5 GB). Watch progress with:"
-        echo "  ${COMPOSE[*]} -f $COMPOSE_FILE logs -f $LOG_PULLER"
+        warn "First run embeds the rulebooks against the OpenAI API. Watch progress with:"
+        echo "  ${COMPOSE[*]} -f $COMPOSE_FILE logs -f meridian-web | grep -i indexing"
     fi
     echo "Useful:"
     echo "  ${COMPOSE[*]} -f $COMPOSE_FILE logs -f meridian-web   # follow app logs"

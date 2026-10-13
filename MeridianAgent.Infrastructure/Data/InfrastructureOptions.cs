@@ -12,7 +12,12 @@ public sealed class QdrantOptions
 
     public string CollectionPrefix { get; set; } = "meridian";
 
-    public int VectorSize { get; set; } = 768;
+    /// <summary>
+    /// Vector length of the embedding model — 1536 for text-embedding-3-small (see
+    /// <see cref="AiOptions.DefaultVectorSize"/>). A collection written by a different-sized model is
+    /// rebuilt on the next indexing run, so this only has to match the model that is configured now.
+    /// </summary>
+    public int VectorSize { get; set; } = AiOptions.DefaultVectorSize;
 
     public string Distance { get; set; } = "Cosine";
 }

@@ -2,15 +2,15 @@ namespace MeridianAgent.Infrastructure.AI.Agents;
 
 /// <summary>
 /// Agent 3: the quiet guardian. Checks the proposed plan against the destination rulebook and
-/// flags risks with gentle fixes. Model: qwen2.5:3b.
+/// flags risks with gentle fixes. Model: gpt-4o-mini.
 /// </summary>
 public sealed class SafeguardAgent(
-    ILlmClient client,
+    IChatClient chatClient,
     ILogger<SafeguardAgent> logger,
-    string? model = null,
-    string? sanitizerModel = null) : AgentBase(client, logger, model ?? DefaultModel), ISafeguardAgent
+    IOptions<AiOptions>? aiOptions = null,
+    string? model = null) : AgentBase(chatClient, logger, aiOptions?.Value ?? new AiOptions(), model), ISafeguardAgent
 {
-    public const string DefaultModel = "qwen2.5:3b";
+    public const string DefaultModel = AiOptions.DefaultModel;
 
     private const string Prompt = """
         You are a cultural compliance agent for $Destination. Your job is to check whether the proposed plan contains any risk of violating local laws, cultural norms, or venue-specific rules.
@@ -60,8 +60,6 @@ public sealed class SafeguardAgent(
         """;
 
     public override string AgentName => "SafeguardAgent";
-
-    public override string SanitizerModel { get; } = sanitizerModel ?? DefaultModel;
 
     public Task<SafeguardReport> CheckAsync(
         ProposedItinerary plan,

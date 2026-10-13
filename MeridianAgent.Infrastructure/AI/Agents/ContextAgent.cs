@@ -2,15 +2,16 @@ namespace MeridianAgent.Infrastructure.AI.Agents;
 
 /// <summary>
 /// Agent 1: extracts ONLY the constraints that matter for the current query from the user's profile.
-/// Model: qwen2.5:1.5b - deliberately tiny, because this stage is pure data reduction.
+/// Model: gpt-4o-mini - cheap and fast, because this stage is pure data reduction.
 /// </summary>
 public sealed class ContextAgent(
-    ILlmClient client,
+    IChatClient chatClient,
     ILogger<ContextAgent> logger,
-    string? model = null,
-    string? sanitizerModel = null) : AgentBase(client, logger, model ?? DefaultModel), IContextAgent
+    IOptions<AiOptions>? aiOptions = null,
+    string? model = null)
+    : AgentBase(chatClient, logger, aiOptions?.Value ?? new AiOptions(), model), IContextAgent
 {
-    public const string DefaultModel = "qwen2.5:1.5b";
+    public const string DefaultModel = AiOptions.DefaultModel;
 
     private const string Prompt = """
         You are a strict data-extraction agent. Your ONLY job is to read the user's profile and their current query, then output a JSON object containing ONLY the constraints relevant to this specific moment.
@@ -52,8 +53,6 @@ public sealed class ContextAgent(
         """;
 
     public override string AgentName => "ContextAgent";
-
-    public override string SanitizerModel { get; } = sanitizerModel ?? DefaultModel;
 
     public Task<ExtractedConstraints> ExtractAsync(
         TravelRequest request,

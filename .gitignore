@@ -29,6 +29,7 @@ meridian.db-wal
 meridian.db-shm
 
 ## Local secrets / environment
+.env
 .env.local
 .env.*.local
 secrets.json

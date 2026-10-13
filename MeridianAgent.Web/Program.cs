@@ -1,10 +1,12 @@
+// File-scoped rather than global: the Web project has its own ChatMessage, and a global
+// Microsoft.Extensions.AI using would make every reference to it ambiguous.
+using Microsoft.Extensions.AI;
+
 var builder = WebApplication.CreateBuilder(args);
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
     .CreateLogger();
-builder.Host.UseSerilog();
-builder.Services.Configure<OllamaOptions>(builder.Configuration.GetSection(OllamaOptions.SectionName));
-builder.Services.Configure<QdrantOptions>(builder.Configuration.GetSection(QdrantOptions.SectionName));
+builder.Host.UseSerilog(); builder.Services.Configure<QdrantOptions>(builder.Configuration.GetSection(QdrantOptions.SectionName));
 builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection(StorageOptions.SectionName));
 builder.Services.Configure<NominatimOptions>(builder.Configuration.GetSection(NominatimOptions.SectionName));
 builder.Services.Configure<OsrmOptions>(builder.Configuration.GetSection(OsrmOptions.SectionName));
@@ -18,15 +20,15 @@ builder.Services.AddRazorComponents()
 builder.Services.AddMudServices();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSignalR();
-builder.Services.AddHealthChecks();
-// Ollama: typed client with base address and timeout from configuration.
+// A rejected, revoked, or zero-balance key must fail the deploy gate rather than look green until
+// the first traveler query, so health is a proof the gateway answers — not a liveness ping.
 builder.Services
-    .AddHttpClient<ILlmClient, OllamaClient>((serviceProvider, client) =>
-    {
-        var options = builder.Configuration.GetSection(OllamaOptions.SectionName).Get<OllamaOptions>() ?? new OllamaOptions();
-        client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/'));
-        client.Timeout = TimeSpan.FromSeconds(options.RequestTimeoutSeconds);
-    });
+    .AddHealthChecks()
+    .AddCheck<GatewayHealthCheck>("gateway", tags: new[] { "ready" });
+// The hosted model: one IChatClient every agent asks for JSON, from the Kilo AI Gateway (or any
+// OpenAI-compatible host set in AI:BaseUrl). Registered before the agents so their constructor
+// injection resolves.
+builder.Services.AddMeridianAi(builder.Configuration);
 // Qdrant vector store + external map/weather APIs.
 builder.Services.AddHttpClient<QdrantClient>();
 builder.Services.AddHttpClient<NominatimClient>();
@@ -65,7 +67,14 @@ builder.Services.AddSingleton<ITravelTimeProvider>(services =>
         services.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(OsrmTravelClient)),
         services.GetRequiredService<IOptions<OsrmOptions>>(),
         services.GetRequiredService<ILogger<OsrmTravelClient>>()));
-builder.Services.AddSingleton<VectorRulebookNarrower>();
+// The embedding generator is only registered when an embedding model is configured — the Kilo
+// Gateway hosts chat models only — so it is resolved with GetService rather than injected: null
+// means "search the full rulebook", which is what the narrower then does.
+builder.Services.AddSingleton<VectorRulebookNarrower>(serviceProvider =>
+    new VectorRulebookNarrower(
+        serviceProvider.GetService<IEmbeddingGenerator<string, Embedding<float>>>(),
+        serviceProvider.GetRequiredService<QdrantClient>(),
+        serviceProvider.GetRequiredService<ILogger<VectorRulebookNarrower>>()));
 builder.Services.AddSingleton<IRulebookNarrower>(serviceProvider =>
     serviceProvider.GetRequiredService<VectorRulebookNarrower>());
 builder.Services.AddScoped<IContextAgent, ContextAgent>();

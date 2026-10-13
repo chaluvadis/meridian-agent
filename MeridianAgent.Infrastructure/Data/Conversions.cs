@@ -20,16 +20,9 @@ public static class Conversions
     };
 
     /// <summary>String lists become JSON arrays (values contain commas and ampersands).</summary>
-    /// <remarks>
-    /// <c>convertsNulls: true</c> matters: EF's default is to pass a null straight through to the
-    /// column without calling the conversion, which both writes an empty cell into a NOT NULL column
-    /// and skips the empty-array normalization. With it, a null list becomes "[]" on the way down
-    /// and an empty list on the way back up.
-    /// </remarks>
     public static ValueConverter<IReadOnlyList<string>, string> StringList { get; } = new(
         value => WriteList(value),
-        value => ParseList(value),
-        convertsNulls: true);
+        value => ParseList(value));
 
     /// <summary>
     /// Tells EF how to compare two converted lists for change detection. Without it, saving a

@@ -2,15 +2,15 @@ namespace MeridianAgent.Infrastructure.AI.Agents;
 
 /// <summary>
 /// Agent 2: proposes 1-3 venues that fit the extracted constraints AND the current reality
-/// (weather, local time, energy). Model: qwen2.5:3b.
+/// (weather, local time, energy). Model: gpt-4o-mini.
 /// </summary>
 public sealed class SearchAgent(
-    ILlmClient client,
+    IChatClient chatClient,
     ILogger<SearchAgent> logger,
-    string? model = null,
-    string? sanitizerModel = null) : AgentBase(client, logger, model ?? DefaultModel), ISearchAgent
+    IOptions<AiOptions>? aiOptions = null,
+    string? model = null) : AgentBase(chatClient, logger, aiOptions?.Value ?? new AiOptions(), model), ISearchAgent
 {
-    public const string DefaultModel = "qwen2.5:3b";
+    public const string DefaultModel = AiOptions.DefaultModel;
 
     /// <summary>
     /// The one phrasing the Search Agent is taught for a mixed-venue trade, and the same one the
@@ -92,8 +92,6 @@ public sealed class SearchAgent(
         """;
 
     public override string AgentName => "SearchAgent";
-
-    public override string SanitizerModel { get; } = sanitizerModel ?? DefaultModel;
 
     public Task<ProposedItinerary> ProposeAsync(
         ExtractedConstraints constraints,

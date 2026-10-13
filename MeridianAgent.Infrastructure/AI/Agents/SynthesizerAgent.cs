@@ -2,14 +2,15 @@ namespace MeridianAgent.Infrastructure.AI.Agents;
 
 /// <summary>
 /// Agent 4: the only voice the user hears. Weaves the plan and any safeguard warnings into a warm,
-/// concise concierge response. Model: llama3.1:8b. Output streams token-by-token to the Blazor UI.
+/// concise concierge response. Model: gpt-4o-mini. Output streams token-by-token to the Blazor UI.
 /// </summary>
 public sealed class SynthesizerAgent(
-    ILlmClient client,
+    IChatClient chatClient,
     ILogger<SynthesizerAgent> logger,
-    string? model = null) : AgentBase(client, logger, model ?? DefaultModel), ISynthesizerAgent
+    IOptions<AiOptions>? aiOptions = null,
+    string? model = null) : AgentBase(chatClient, logger, aiOptions?.Value ?? new AiOptions(), model), ISynthesizerAgent
 {
-    public const string DefaultModel = "llama3.1:8b";
+    public const string DefaultModel = AiOptions.DefaultModel;
 
     private const string Prompt = """
         You are The Meridian Agent — a highly personalized, empathetic, and discreet travel concierge. You are the ONLY voice the user hears.
@@ -196,8 +197,6 @@ public sealed class SynthesizerAgent(
 
     public override string AgentName => "SynthesizerAgent";
 
-    public override string SanitizerModel { get; } = DefaultModel;
-
     /// <summary>
     /// The one message that matters after the day: what was saved, in the order it happens, with
     /// the reason it was chosen and one tip for the day. Compiled only from what the traveler
@@ -252,9 +251,7 @@ public sealed class SynthesizerAgent(
         CancellationToken cancellationToken = default)
     {
         var prompt = BuildPrompt(request);
-        return Client.StreamAsync(
-            new LlmRequest(Model, prompt, JsonMode: false, Temperature: 0.7),
-            cancellationToken);
+        return StreamTextAsync(prompt, 0.7, cancellationToken: cancellationToken);
     }
 
     public async Task<string> CompleteAsync(
@@ -276,7 +273,7 @@ public sealed class SynthesizerAgent(
     /// </summary>
     public async Task<string> GenerateItineraryAsync(
         UserProfile profile,
-        IReadOnlyList<ChatMessage> savedMessages,
+        IReadOnlyList<MeridianAgent.Domain.Entities.ChatMessage> savedMessages,
         CancellationToken cancellationToken = default)
     {
         if (savedMessages.Count == 0)
@@ -357,8 +354,7 @@ public sealed class SynthesizerAgent(
     {
         var builder = new StringBuilder();
 
-        await foreach (var token in Client
-            .StreamAsync(new LlmRequest(Model, prompt, JsonMode: false, Temperature: 0.7), cancellationToken)
+        await foreach (var token in StreamTextAsync(prompt, 0.7, cancellationToken: cancellationToken)
             .ConfigureAwait(false))
         {
             builder.Append(token);
@@ -385,10 +381,7 @@ public sealed class SynthesizerAgent(
             });
 
         var builder = new StringBuilder();
-        await foreach (var token in Client
-            .StreamAsync(
-                new LlmRequest(Model, prompt, JsonMode: false, Temperature: 0.7),
-                cancellationToken)
+        await foreach (var token in StreamTextAsync(prompt, 0.7, cancellationToken: cancellationToken)
             .ConfigureAwait(false))
         {
             builder.Append(token);
@@ -431,10 +424,7 @@ public sealed class SynthesizerAgent(
             });
 
         var builder = new StringBuilder();
-        await foreach (var token in Client
-            .StreamAsync(
-                new LlmRequest(Model, prompt, JsonMode: false, Temperature: 0.7),
-                cancellationToken)
+        await foreach (var token in StreamTextAsync(prompt, 0.7, cancellationToken: cancellationToken)
             .ConfigureAwait(false))
         {
             builder.Append(token);
@@ -501,10 +491,7 @@ public sealed class SynthesizerAgent(
             });
 
         var builder = new StringBuilder();
-        await foreach (var token in Client
-            .StreamAsync(
-                new LlmRequest(Model, prompt, JsonMode: true, Temperature: 0.7),
-                cancellationToken)
+        await foreach (var token in StreamTextAsync(prompt, 0.7, json: true, cancellationToken: cancellationToken)
             .ConfigureAwait(false))
         {
             builder.Append(token);

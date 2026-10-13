@@ -80,6 +80,11 @@ public sealed class UserProfileService : IUserProfileService
 
     public async Task SaveProfileAsync(UserProfile profile, CancellationToken cancellationToken = default)
     {
+        // EF passes a null list straight to the NOT NULL column without converting it, so every
+        // list is present by the time the change tracker sees the entity. Reads already coerce
+        // whatever the cell holds; this is the write side of the same guarantee.
+        profile = profile.WithSafeLists();
+
         await using var context = await _contextFactory
             .CreateDbContextAsync(cancellationToken)
             .ConfigureAwait(false);

@@ -150,15 +150,20 @@ public class PromptRenderingTests
     }
 
     [Fact]
-    public void Conversions_WriteAnEmptyJsonArrayRatherThanTheStringNull()
+    public void Conversions_ReadEveryLegacyCellShapeAsAnEmptyList()
     {
-        // A null list used to be stored as the four characters "null", which is not valid JSON for
-        // anything that reads the cell without this converter (including SQL json functions).
-        var stored = Assert.IsType<string>(Conversions.StringList.ConvertToProvider(null!));
+        // The shapes a list cell can hold: an empty cell, the JSON "null" an older converter wrote,
+        // and a corrupt value. The read side coerces all of them, so a profile still loads rather
+        // than taking the request down with a JsonException.
+        var empty = Conversions.StringList.ConvertFromProvider(string.Empty);
+        var jsonNull = Conversions.StringList.ConvertFromProvider("null");
+        var corrupt = Conversions.StringList.ConvertFromProvider("{not json");
+        var real = Conversions.StringList.ConvertFromProvider("[\"vegetarian\"]");
 
-        Assert.Equal("[]", stored);
-        Assert.Empty(Assert.IsAssignableFrom<IEnumerable<string>>(Conversions.StringList.ConvertFromProvider(stored)));
-        Assert.Empty(Assert.IsAssignableFrom<IEnumerable<string>>(Conversions.StringList.ConvertFromProvider("null")));
+        Assert.Empty(Assert.IsAssignableFrom<IEnumerable<string>>(empty));
+        Assert.Empty(Assert.IsAssignableFrom<IEnumerable<string>>(jsonNull));
+        Assert.Empty(Assert.IsAssignableFrom<IEnumerable<string>>(corrupt));
+        Assert.Contains("vegetarian", Assert.IsAssignableFrom<IEnumerable<string>>(real));
     }
 
     [Fact]

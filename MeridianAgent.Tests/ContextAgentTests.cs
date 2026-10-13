@@ -32,13 +32,31 @@ public class ContextAgentTests
     }
 
     [Fact]
-    public async Task ExtractAsync_UsesConfiguredModel()
+    public async Task ExtractAsync_UsesTheConfiguredModel()
     {
-        var agent = CreateAgent("""{"query_intent": "food"}""");
+        // The configured model is what reaches the gateway, because a per-call ModelId overrides
+        // whatever model the client holds: asserting the constant here would prove nothing.
+        var client = new ScriptedLlmClient("""{"query_intent": "food"}""");
+        var agent = new ContextAgent(
+            client,
+            NullLogger<ContextAgent>.Instance,
+            Options.Create(new AiOptions { Model = "anthropic/claude-haiku-4.5" }));
 
         await agent.ExtractAsync(TestData.Request());
 
-        Assert.Equal("qwen2.5:1.5b", agent.Model);
+        Assert.Equal("anthropic/claude-haiku-4.5", client.Calls[0].Model);
+        Assert.Equal("anthropic/claude-haiku-4.5", agent.Model);
+    }
+
+    [Fact]
+    public async Task ExtractAsync_FallsBackToTheConfiguredDefault()
+    {
+        var client = new ScriptedLlmClient("""{"query_intent": "food"}""");
+        var agent = new ContextAgent(client, NullLogger<ContextAgent>.Instance);
+
+        await agent.ExtractAsync(TestData.Request());
+
+        Assert.Equal(AiOptions.DefaultModel, client.Calls[0].Model);
     }
 
     [Fact]

@@ -34,6 +34,27 @@ public sealed class QdrantClient
             return;
         }
 
+        if (await ExistsWithDifferentSizeAsync(collection, cancellationToken).ConfigureAwait(false))
+        {
+            // A collection from a previous embedding model: its vectors no longer match. Rebuilt
+            // rather than reused, so switching models heals itself instead of failing every upsert
+            // with an error the rulebook search would swallow into a full-rulebook fallback.
+            _logger.LogWarning(
+                "Qdrant collection {Collection} holds vectors of a different size; rebuilding it for the current embedding model",
+                collection);
+
+            using var delete = await _httpClient
+                .DeleteAsync($"collections/{Uri.EscapeDataString(collection)}", cancellationToken)
+                .ConfigureAwait(false);
+
+            if (!delete.IsSuccessStatusCode)
+            {
+                var deleteError = await delete.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                throw new InvalidOperationException(
+                    $"Qdrant could not drop the mismatched collection '{collection}': {(int)delete.StatusCode} {deleteError}");
+            }
+        }
+
         var body = new
         {
             vectors = new Dictionary<string, object>
@@ -55,6 +76,44 @@ public sealed class QdrantClient
 
         _knownCollections.Add(collection);
         _logger.LogInformation("Qdrant collection {Collection} is ready", collection);
+    }
+
+    /// <summary>
+    /// Whether the collection already exists holding vectors of a different length than the
+    /// configured embedding model produces. A missing collection is not a mismatch: it is about to
+    /// be created at the right size.
+    /// </summary>
+    private async Task<bool> ExistsWithDifferentSizeAsync(string collection, CancellationToken cancellationToken)
+    {
+        using var response = await _httpClient
+            .GetAsync($"collections/{Uri.EscapeDataString(collection)}", cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return false;
+        }
+
+        try
+        {
+            var document = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken).ConfigureAwait(false);
+            var configSize = document
+                .GetProperty("result")
+                .GetProperty("config")
+                .GetProperty("params")
+                .GetProperty("vectors")
+                .GetProperty("size")
+                .GetInt32();
+
+            return configSize != _options.VectorSize;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // A response shape we do not understand is treated as "no mismatch": creating the
+            // collection again is idempotent, and refusing to index would be worse.
+            _logger.LogDebug(ex, "Could not read the vector size of Qdrant collection {Collection}", collection);
+            return false;
+        }
     }
 
     public async Task UpsertAsync(
